@@ -106,7 +106,9 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
     const lines = src.split('\n');
     while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
     while (lines.length && !lines[0].trim()) lines.shift();
-    return lines;
+    // Drop the indent all lines share, so the piece is centred on what's drawn.
+    const ind = Math.min(...lines.filter((l) => l.trim()).map((l) => l.match(/^ */)[0].length));
+    return lines.map((l) => l.slice(Number.isFinite(ind) ? ind : 0));
   }).filter((l) => l.length);
   const artUsed = new Set();
   let artNext = 0;
