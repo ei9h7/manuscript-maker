@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manuscript Maker</title>
+<meta name="description" content="Build print-ready PDF and EPUB from a manuscript stored in a private GitHub repo.">
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='3' width='20' height='26' rx='2' fill='%23222'/%3E%3Cpath d='M10 10h12M10 15h12M10 20h8' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<script type="module" src="src/app.js"></script>
+</head>
+<body>
+<header class="top">
+  <h1>Manuscript Maker</h1>
+  <span class="status" id="status" role="status" aria-live="polite">Load a manuscript to begin.</span>
+  <div class="top-actions">
+    <button id="btn-pdf" class="primary" disabled>Download PDF</button>
+    <button id="btn-epub" disabled>Download EPUB</button>
+  </div>
+</header>
+
+<main class="layout">
+<aside class="panel" id="panel">
+
+  <!-- ===================== SOURCE ===================== -->
+  <section class="card">
+    <h2>Manuscript</h2>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="gh" aria-selected="true">GitHub</button>
+      <button role="tab" data-tab="file" aria-selected="false">Upload</button>
+      <button role="tab" data-tab="sample" aria-selected="false">Sample</button>
+    </div>
+
+    <div class="tab" data-pane="gh">
+      <label>Repository
+        <input id="gh-repo" placeholder="owner/repo or github.com URL" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="row">
+        <label>Path <input id="gh-path" placeholder="manuscript.md" spellcheck="false"></label>
+        <label class="narrow">Branch <input id="gh-ref" placeholder="default" spellcheck="false"></label>
+      </div>
+      <label>Access token <span class="hint">(needed for private repos)</span>
+        <input id="gh-token" type="password" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="check"><input type="checkbox" id="gh-remember"> Remember token on this device</label>
+      <p class="hint">Use a <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained token</a> limited to your writing repo with read-only <b>Contents</b> permission. A path can be a folder: its .md files are joined in name order. A <code>book.json</code> next to the manuscript sets the layout and front matter.</p>
+      <button id="gh-load" class="primary">Load from GitHub</button>
+    </div>
+
+    <div class="tab" data-pane="file" hidden>
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept=".txt,.md,.markdown,.docx,.epub,.html,.htm,.xhtml">
+        <span><b>Choose a file</b> or drop it here<br><span class="hint">.txt · .md · .docx · .epub</span></span>
+      </label>
+      <p class="hint">Word and EPUB files are converted to the manuscript format. EPUB import removes the table of contents, navigation, cover, title and copyright pages, which gives you a clean transcript for print.</p>
+    </div>
+
+    <div class="tab" data-pane="sample" hidden>
+      <p class="hint">A short three-chapter sample with front matter and callouts: <code>sample/manuscript.md</code> and <code>sample/frontmatter.md</code>.</p>
+      <button id="sample-load">Load sample book</button>
+    </div>
+
+    <div id="source-info" class="source-info" hidden></div>
+    <div id="import-report" class="report" hidden></div>
+    <button id="btn-md" class="link" hidden>Download manuscript (.md)</button>
+  </section>
+
+  <!-- ===================== CHECK ===================== -->
+  <section class="card" id="check-card" hidden>
+    <h2>Check</h2>
+    <p id="stats" class="stats"></p>
+    <ul id="warnings" class="warnings"></ul>
+  </section>
+
+  <!-- ===================== LAYOUT ===================== -->
+  <form id="settings" class="card settings" autocomplete="off">
+    <h2>Layout</h2>
+
+    <details open>
+      <summary>Page &amp; margins</summary>
+      <fieldset>
+        <legend>Trim size</legend>
+        <div class="radios">
+          <label><input type="radio" name="trim.preset" data-k="trim.preset" value="5x8"> 5 × 8 in</label>
+          <label><input type="radio" name="trim.preset" data-k="trim.preset" value="5.25x8"> 5.25 × 8</label>
+          <label><input type="radio" name="trim.preset" data-k="trim.preset" value="5.5x8.5"> 5.5 × 8.5</label>
+          <label><input type="radio" name="trim.preset" data-k="trim.preset" value="6x9"> 6 × 9</label>
+          <label><input type="radio" name="trim.preset" data-k="trim.preset" value="custom"> Custom</label>
+        </div>
+        <div class="row" id="custom-trim">
+          <label>Width (in) <input type="number" step="0.05" min="3" max="12" data-k="trim.width"></label>
+          <label>Height (in) <input type="number" step="0.05" min="4" max="14" data-k="trim.height"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Margins (inches)</legend>
+        <label class="check"><input type="checkbox" data-k="margins.mirrored"> Mirrored (inside/outside swap on facing pages)</label>
+        <div class="row four">
+          <label><span data-mirror="Inside|Left">Inside</span> <input type="number" step="0.05" min="0" data-k="margins.inside"></label>
+          <label><span data-mirror="Outside|Right">Outside</span> <input type="number" step="0.05" min="0" data-k="margins.outside"></label>
+          <label>Head <input type="number" step="0.05" min="0" data-k="margins.top"></label>
+          <label>Foot <input type="number" step="0.05" min="0" data-k="margins.bottom"></label>
+        </div>
+        <p class="hint" id="text-block"></p>
+      </fieldset>
+    </details>
+
+    <details>
+      <summary>Recto / verso &amp; page numbers</summary>
+      <fieldset>
+        <label class="check"><input type="checkbox" data-k="pages.chapterRecto"> Chapters open on a right-hand (recto) page</label>
+        <label class="check"><input type="checkbox" data-k="pages.frontRoman"> Roman numerals for front matter (i, ii, iii…)</label>
+        <label class="check"><input type="checkbox" data-k="pages.frontFolios"> Print page numbers on title / praise / copyright pages</label>
+        <label class="check"><input type="checkbox" data-k="pages.openerFolio"> Print page number on chapter-opening pages</label>
+        <label class="check"><input type="checkbox" data-k="pages.runningHeads"> Running heads (book title on left pages, chapter on right)</label>
+        <label class="check"><input type="checkbox" data-k="pages.endEven"> End on an even page (add a blank last page if needed)</label>
+      </fieldset>
+      <fieldset>
+        <legend>Page number position</legend>
+        <div class="radios">
+          <label><input type="radio" name="pages.folioPosition" data-k="pages.folioPosition" value="bottom-outside"> Bottom outside</label>
+          <label><input type="radio" name="pages.folioPosition" data-k="pages.folioPosition" value="bottom-center"> Bottom centre</label>
+          <label><input type="radio" name="pages.folioPosition" data-k="pages.folioPosition" value="top-outside"> Top outside</label>
+        </div>
+      </fieldset>
+    </details>
+
+    <details>
+      <summary>Fonts</summary>
+      <table class="fonts">
+        <thead><tr><th></th><th>Family</th><th>Style</th><th>Size</th></tr></thead>
+        <tbody id="font-rows"></tbody>
+      </table>
+      <p class="hint">Crimson Pro and Barlow are downloaded from jsDelivr and embedded. If the download fails, Times is used instead.</p>
+    </details>
+
+    <details>
+      <summary>Text</summary>
+      <div class="row three">
+        <label>Leading (pt) <input type="number" step="0.25" min="6" data-k="text.leading"></label>
+        <label>Paragraph gap <input type="number" step="0.25" min="0" data-k="text.paraGap"></label>
+        <label>Indent (pt) <input type="number" step="1" min="0" data-k="text.indent"></label>
+      </div>
+      <div class="radios">
+        <label><input type="radio" name="text.align" data-k="text.align" value="left"> Ragged right</label>
+        <label><input type="radio" name="text.align" data-k="text.align" value="justify"> Justified</label>
+      </div>
+      <label class="check"><input type="checkbox" data-k="text.indentFirst"> Indent first paragraph of a chapter</label>
+      <label class="check"><input type="checkbox" data-k="text.widowOrphan"> Keep at least 2 lines of a paragraph at the foot of a page</label>
+      <label class="check"><input type="checkbox" data-k="text.widowControl"> …and at least 2 lines at the top of the next page</label>
+      <label class="check"><input type="checkbox" data-k="text.hyphenBreaks"> Also break at hyphens to fill lines <span class="hint">(over-long words are always split at hyphens)</span></label>
+      <label class="check"><input type="checkbox" data-k="text.noDashLineStart"> Never start a line with a spaced em dash</label>
+    </details>
+
+    <details>
+      <summary>Callouts</summary>
+      <p class="hint">A paragraph that starts with <code>[!callout]</code> becomes a callout box.</p>
+      <label>Also treat paragraphs matching this pattern as callouts <span class="hint">(regular expression)</span>
+        <input data-k="input.calloutPattern" placeholder="e.g. ^Rule \d+:" spellcheck="false">
+      </label>
+      <div class="radios">
+        <label><input type="radio" name="callout.style" data-k="callout.style" value="plain"> Plain (indented, callout font)</label>
+        <label><input type="radio" name="callout.style" data-k="callout.style" value="box"> Box with rule</label>
+      </div>
+      <label class="check"><input type="checkbox" data-k="input.calloutBoldLead"> Bold a short “Label:” at the start</label>
+      <label class="check"><input type="checkbox" data-k="callout.keepTogether"> Keep each callout on one page (and with the next line)</label>
+      <div class="row">
+        <label>Space above (plain) <input type="number" step="0.5" min="0" data-k="callout.spaceBefore"></label>
+        <label>Space below (plain) <input type="number" step="0.5" min="0" data-k="callout.spaceAfter"></label>
+      </div>
+      <label class="check"><input type="checkbox" data-k="callout.tint"> Tinted background (box)</label>
+      <div class="row three">
+        <label>Leading <input type="number" step="0.25" min="6" data-k="callout.leading"></label>
+        <label>Rule (pt) <input type="number" step="0.5" min="0" data-k="callout.rule"></label>
+        <label>Padding <input type="number" step="1" min="0" data-k="callout.padding"></label>
+      </div>
+      <div class="row three">
+        <label>Tint <input type="color" data-k="callout.tintColor"></label>
+        <label>Rule <input type="color" data-k="callout.ruleColor"></label>
+        <label>Text <input type="color" data-k="callout.textColor"></label>
+      </div>
+    </details>
+
+    <details>
+      <summary>Chapter openers</summary>
+      <fieldset>
+        <legend>Chapter label</legend>
+        <div class="radios">
+          <label><input type="radio" name="opener.label" data-k="opener.label" value="numeral"> CHAPTER 1</label>
+          <label><input type="radio" name="opener.label" data-k="opener.label" value="words"> CHAPTER ONE</label>
+          <label><input type="radio" name="opener.label" data-k="opener.label" value="number"> 1</label>
+          <label><input type="radio" name="opener.label" data-k="opener.label" value="none"> None</label>
+        </div>
+      </fieldset>
+      <div class="radios">
+        <label><input type="radio" name="opener.align" data-k="opener.align" value="left"> Left</label>
+        <label><input type="radio" name="opener.align" data-k="opener.align" value="center"> Centred</label>
+      </div>
+      <div class="row">
+        <label>Drop (pt from head) <input type="number" step="1" min="0" data-k="opener.sinkage"></label>
+        <label>Space before text <input type="number" step="0.5" min="0" data-k="opener.afterGap"></label>
+      </div>
+      <label class="check"><input type="checkbox" data-k="opener.ornament"> Short rule under the heading</label>
+    </details>
+
+    <details>
+      <summary>Table of contents</summary>
+      <label class="check"><input type="checkbox" data-k="toc.enabled"> Contents page in the PDF</label>
+      <label class="check"><input type="checkbox" data-k="epub.visibleToc"> Contents page in the EPUB reading order</label>
+      <label class="check"><input type="checkbox" data-k="toc.leaders"> Dot leaders</label>
+      <label class="check"><input type="checkbox" data-k="toc.subtitles"> Include subtitles</label>
+      <label>Heading <input data-k="toc.title"></label>
+      <p class="hint">EPUBs always include a navigation table of contents for e-readers. These options only add a visible page.</p>
+    </details>
+
+    <details>
+      <summary>Front matter</summary>
+      <p class="hint">The pages before chapter 1, in order. This is the same text as <code>frontmatter.md</code> in your writing repo (loaded automatically when present). You can also upload a front-matter file here.</p>
+      <label class="visually-hidden" for="fm-text">Front matter</label>
+      <textarea id="fm-text" rows="16" data-k="frontMatter.text" spellcheck="false" class="mono"></textarea>
+      <details class="help">
+        <summary>Format</summary>
+        <ul>
+          <li><code>[title]</code> starts a page. Types: <code>title</code>, <code>halftitle</code>, <code>praise</code>, <code>copyright</code>, <code>dedication</code>, <code>epigraph</code>, <code>page</code>, <code>blank</code>, <code>toc</code>.</li>
+          <li><code>key: value</code> lines right after it set fields: <code>title</code>, <code>subtitle</code>, <code>author</code>, <code>publisher</code>, <code>heading</code>, <code>align: center</code>.</li>
+          <li>Every other line is a paragraph. On praise and epigraph pages, put the source after a spaced dash: <code>Quote. — The Sample Review</code>.</li>
+          <li>Lines before the first page set book-wide values, like <code>year: 2026</code> or <code>isbn: …</code>. <code>{title}</code>, <code>{author}</code> and <code>{year}</code> are filled in anywhere.</li>
+          <li><code>// </code> starts a comment line.</li>
+        </ul>
+      </details>
+      <div class="form-actions"><button type="button" id="btn-front">Download frontmatter.md</button></div>
+    </details>
+
+    <details>
+      <summary>Text clean-up &amp; EPUB</summary>
+      <label class="check"><input type="checkbox" data-k="input.smartQuotes"> Convert straight quotes to curly quotes</label>
+      <label class="check"><input type="checkbox" data-k="input.smartDashes"> Convert -- to em dash</label>
+      <label class="check"><input type="checkbox" data-k="input.ellipses"> Convert ... to …</label>
+      <label class="check"><input type="checkbox" data-k="epub.embedFonts"> Embed fonts in the EPUB</label>
+      <label>EPUB language <input data-k="epub.language" spellcheck="false"></label>
+    </details>
+
+    <div class="form-actions">
+      <button type="button" id="btn-json">Download book.json</button>
+      <button type="button" id="btn-reset" class="link">Reset to defaults</button>
+    </div>
+  </form>
+</aside>
+
+<section class="preview">
+  <div class="preview-bar">
+    <div class="radios view" role="radiogroup" aria-label="Preview mode">
+      <label><input type="radio" name="view" value="spreads" checked> Spreads</label>
+      <label><input type="radio" name="view" value="single"> Pages</label>
+      <label><input type="radio" name="view" value="native"> Browser viewer</label>
+    </div>
+    <label class="check"><input type="checkbox" id="live" checked> Live</label>
+    <button id="btn-refresh" disabled>Rebuild</button>
+    <span id="pageinfo" class="hint"></span>
+  </div>
+  <div class="frame-wrap">
+    <div id="spreads" class="spreads" tabindex="0" aria-label="Page preview"></div>
+    <iframe id="frame" title="PDF preview" hidden></iframe>
+    <div class="empty" id="empty">
+      <p>Your book will appear here.</p>
+      <p class="hint">Load your manuscript from GitHub, upload a file, or try the sample book.</p>
+    </div>
+  </div>
+</section>
+</main>
+</body>
+</html>

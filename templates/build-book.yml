@@ -1,0 +1,47 @@
+# Copy this file into YOUR WRITING REPO as .github/workflows/build-book.yml
+# Then: Actions → "Build book" → Run workflow. The PDF and EPUB appear as a
+# downloadable artifact on the run page.
+#
+# If the manuscript-maker repo is private, create a fine-grained token with
+# read-only Contents access to it and save it in the writing repo as the
+# secret MANUSCRIPT_MAKER_TOKEN.
+
+name: Build book
+
+on:
+  workflow_dispatch:
+    inputs:
+      manuscript:
+        description: Manuscript file or folder
+        default: manuscript.md
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the manuscript
+        uses: actions/checkout@v4
+        with:
+          path: book
+
+      - name: Check out Manuscript Maker
+        uses: actions/checkout@v4
+        with:
+          repository: ei9h7/manuscript-maker
+          token: ${{ secrets.MANUSCRIPT_MAKER_TOKEN || github.token }}
+          path: tool
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build PDF and EPUB
+        run: |
+          cd tool
+          npm ci --omit=dev || npm install --omit=dev
+          node bin/build.mjs "../book/${{ inputs.manuscript }}" --pdf ../out/book.pdf --epub ../out/book.epub
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: book
+          path: out/

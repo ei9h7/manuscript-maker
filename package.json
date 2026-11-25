@@ -1,0 +1,17 @@
+{
+  "name": "manuscript-maker",
+  "version": "0.1.0",
+  "description": "Build print-ready PDF and EPUB from a plain-text manuscript stored in a (private) git repo.",
+  "type": "module",
+  "bin": { "manuscript-maker": "bin/build.mjs" },
+  "scripts": {
+    "build:sample": "node bin/build.mjs sample/manuscript.md --pdf dist/sample.pdf --epub dist/sample.epub",
+    "test": "node --test test/*.test.js",
+    "serve": "npx http-server -c-1 -p 8080 ."
+  },
+  "dependencies": {
+    "jspdf": "4.2.1",
+    "jszip": "3.10.1"
+  },
+  "license": "MIT"
+}
