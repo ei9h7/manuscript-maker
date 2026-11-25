@@ -144,10 +144,70 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
     artUsed.add(pick); artNext++;
     return true;
   };
+  const scatter = !!S.art?.scatter && artPieces.length > 0;
+  const scatterPages = [];
   const ensureRecto = (fill = false) => {
     if (pages.length % 2 === 0) return;
     const b = newPage('blank');
-    if (fill && placeArt(b, top, H - bottomM, true)) b.kind = 'art';
+    if (fill && scatter) scatterPages.push(b);
+    else if (fill && placeArt(b, top, H - bottomM, true)) b.kind = 'art';
+  };
+  // Seeded random numbers, so a build always gives the same arrangement.
+  let seed = (Number(S.art?.seed) || 7) >>> 0;
+  const rand = () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  /** Scatter up to `count` unused pieces over page `pg`, around whatever is printed on it. */
+  const scatterArt = (pg, count) => {
+    const base = role('mono');
+    const f = frame(pages.indexOf(pg) + 1);
+    const pad = base.size * 0.9;
+    const boxes = pg.ops.filter((o) => o.t === 'text' || o.t === 'rect').map((o) => {
+      if (o.t === 'rect') return [o.x, o.y, o.x + o.w, o.y + o.h];
+      // Printed text keeps a wider berth than other art does.
+      const w = measureWith({ fam: o.fam, style: o.style, size: o.size, tracking: o.cs || 0 })(o.text);
+      const m = base.size * 1.6;
+      return [o.x - m, o.y - o.size * 0.85 - m, o.x + w + m, o.y + o.size * 0.3 + m];
+    });
+    const region = [f.left, top, f.left + f.width, H - bottomM];
+    const hit = (b) => boxes.some((o) => b[0] < o[2] + pad && b[2] > o[0] - pad && b[1] < o[3] + pad && b[3] > o[1] - pad);
+    const order = artPieces.map((_, i) => i).filter((i) => !artUsed.has(i)).sort(() => rand() - 0.5);
+    let placed = 0;
+    for (const i of order) {
+      if (placed >= count) break;
+      const lines = artPieces[i];
+      const size = base.size * (0.75 + rand() * 0.25);
+      const g = { ...base, size };
+      const lead = size * 1.15;
+      const w = Math.max(...lines.map((l) => measureWith(g)(l)));
+      const h = (lines.length - 1) * lead + size * 1.06;
+      const th = ((rand() * 2 - 1) * (Number(S.art?.tilt) || 0)) * Math.PI / 180;
+      const bw = Math.abs(w * Math.cos(th)) + Math.abs(h * Math.sin(th));
+      const bh = Math.abs(w * Math.sin(th)) + Math.abs(h * Math.cos(th));
+      if (bw > region[2] - region[0] || bh > region[3] - region[1]) continue;
+      for (let k = 0; k < 300; k++) {
+        const bx = region[0] + rand() * (region[2] - region[0] - bw);
+        const by = region[1] + rand() * (region[3] - region[1] - bh);
+        const b = [bx, by, bx + bw, by + bh];
+        if (hit(b)) continue;
+        // Rotate each line's start about the block's centre (visual tilt is counter-clockwise for th > 0).
+        const cx = bx + bw / 2, cy = by + bh / 2;
+        lines.forEach((l, n) => {
+          const dx = -w / 2, dy = -h / 2 + size * 0.78 + n * lead;
+          const x = cx + dx * Math.cos(th) + dy * Math.sin(th);
+          const yy = cy - dx * Math.sin(th) + dy * Math.cos(th);
+          textOp(pg, l, x, yy, g, g.style, th ? { angle: th * 180 / Math.PI } : {});
+        });
+        boxes.push(b);
+        artUsed.add(i); artNext++; placed++;
+        break;
+      }
+    }
+    return placed;
   };
   const fr = () => frame(pages.length);
 
@@ -249,6 +309,7 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
   const frontPage = {
     title(pg) {
       const p = newPage('front', { label: 'Title page' });
+      if (scatter) scatterPages.push(p);
       const tf = role('title', { size: 23 * K, color: '#000000' });
       let y = pageCentered(p, field(pg, 'title'), tf, top + 98, 27 * K, 250 * K, 0.9);
       const sub = field(pg, 'subtitle');
@@ -288,6 +349,7 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
       // Small type, set from the foot of the page upwards. Lines in a group sit
       // tight; a blank line in frontmatter.md starts a new group.
       const p = newPage('front', { label: 'Copyright' });
+      if (scatter) scatterPages.push(p);
       const f = fr();
       const cf = role('body', { size: Math.max(7 * K, body.size * 0.78), color: '#1e1e1e' });
       const hf = { ...cf, style: 'bold' };
@@ -664,6 +726,14 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
   // ---------- closing blank ----------
   fillShortVerso();
   if (S.pages.endEven) ensureRecto(true);
+  // Scatter what's left over the blank pages, title and copyright, spread evenly.
+  for (let k = 0; k < scatterPages.length; k++) {
+    const left = artPieces.length - artNext;
+    if (left <= 0) break;
+    const pg = scatterPages[k];
+    const n = scatterArt(pg, Math.max(1, Math.ceil(left / (scatterPages.length - k))));
+    if (n && pg.kind === 'blank') pg.kind = 'art';
+  }
   if (artPieces.length && artNext < artPieces.length) warnings.push(`${artPieces.length - artNext} of ${artPieces.length} art pieces had no space to go in.`);
 
   // ---------- render ----------
@@ -703,7 +773,7 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
       } else if (op.t === 'text') {
         setFont(op.fam, op.style, op.size);
         setColor(op.color);
-        doc.text(op.text, op.x, op.y, op.cs ? { charSpace: op.cs } : undefined);
+        doc.text(op.text, op.x, op.y, op.cs || op.angle ? { ...(op.cs ? { charSpace: op.cs } : {}), ...(op.angle ? { angle: op.angle } : {}) } : undefined);
       } else if (op.t === 'tocnum') {
         const label = String(chapterStart[op.chapter] - frontCount);
         setFont(op.f.fam, op.f.style, op.f.size);

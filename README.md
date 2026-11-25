@@ -213,6 +213,12 @@ Make pieces in a mix of sizes. Every empty space gets the tallest unused piece t
 
 Pieces are centred and printed in the typewriter font exactly as typed. If nothing fits a blank page, the next unused piece is shrunk to fit. Pieces with nowhere to go are listed in the build warnings.
 
+With `"scatter": true`, the blank left-hand pages, the title page and the copyright page each take several pieces instead, spread at random spots in slightly different sizes and tilted up to `tilt` degrees (3), so they look sketched in. The arrangement comes from `seed`: every build gives the same layout, and changing the number reshuffles it.
+
+```json
+{ "art": { "enabled": true, "scatter": true, "seed": 7 } }
+```
+
 ### Terminal chapters
 
 `terminal.chapters` lists chapters to set as a vim session: typewriter font, line numbers (one per paragraph), a file tab at the top of each page, a status line at the foot (`NORMAL  archive.log    54,1  17%`) and `~` after the last line. It suits a chapter written as machine output.

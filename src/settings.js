@@ -85,7 +85,9 @@ export const DEFAULTS = {
   // largest unused piece that fits: a verso left blank so a chapter can open recto (or at
   // the end), and the space below the text on a verso that ends a chapter, when at least
   // `minSpace` of the page is free.
-  art: { enabled: false, minSpace: 0.25, file: 'art.md' },
+  // With `scatter`, blank versos, the title page and the copyright page take several
+  // pieces each, at random (seeded) spots and slight tilts, like a sketchbook.
+  art: { enabled: false, minSpace: 0.25, file: 'art.md', scatter: false, seed: 7, tilt: 3 },
   // Chapters set as a terminal session (vim-style): mono type, line numbers, a file tab
   // at the top, a status line at the foot and ~ after the last line. `chapters` lists
   // chapter titles (or the start of them) to set this way.
