@@ -54,6 +54,10 @@ To see it work, open the **Sample** tab and click **Load sample book**. The samp
 
 ## Setting up your writing repo
 
+**The quick way:** open [**manuscript-template**](https://github.com/ei9h7/manuscript-template), click **Use this template → Create a new repository**, name it after the book, and choose **Private**. You get the files below, the sample book to write over, and the build action, ready to go.
+
+Use one repository per book. For many short works, one repository with a folder per work (`stories/manuscript.md`, …) also works. Branches are best kept for versions of the same book.
+
 Keep the book in its own **private** repository:
 
 ```
@@ -210,7 +214,10 @@ node bin/build.mjs path/to/manuscript.md --pdf out/book.pdf --epub out/book.epub
 - `--no-fonts` skips the font download and uses Times.
 - `npm run build:sample` builds the sample into `dist/`.
 
-To build the book from GitHub with no browser, copy [`templates/build-book.yml`](templates/build-book.yml) into your writing repo as `.github/workflows/build-book.yml`. Then **Actions → Build book → Run workflow** attaches the PDF and EPUB to the run.
+To build the book from GitHub with no browser, use the workflow that comes with the template. In an existing repo, copy [`templates/build-book.yml`](templates/build-book.yml) to `.github/workflows/build-book.yml`.
+
+- **Actions → Build book → Run workflow** attaches the PDF and EPUB to the run.
+- Pushing a tag like `v1.0` also attaches them to a GitHub Release, so every proof is kept.
 
 ---
 
