@@ -48,7 +48,7 @@ export async function renderSpreads(container, bytes, { labels = [], spreads = t
         cell.style.aspectRatio = `1 / ${ratio}`;
         const cap = document.createElement('figcaption');
         cap.textContent = labels[p - 1] ? `${labels[p - 1]}` : `p. ${p}`;
-        cap.title = `Physical page ${p}${p % 2 ? ' (recto)' : ' (verso)'}`;
+        cap.title = `Page ${p} of the PDF file (${p % 2 ? 'right-hand' : 'left-hand'} page)`;
         cell.appendChild(cap);
       }
       r.appendChild(cell);

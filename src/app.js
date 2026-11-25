@@ -213,10 +213,13 @@ async function build() {
 }
 
 function folioLabels(result, S) {
+  // The number each page counts as in the book (printed or not).
   return result.layout.map((p, i) => {
-    if (p.kind === 'blank') return `${i + 1} · blank`;
-    if (i < result.frontCount) return `${S.pages.frontRoman ? toRoman(i + 1) : i + 1} · ${p.label || 'front'}`;
-    return String(i + 1 - result.frontCount);
+    const front = i < result.frontCount;
+    const num = front ? (S.pages.frontRoman ? toRoman(i + 1) : String(i + 1)) : String(i + 1 - result.frontCount);
+    if (p.kind === 'blank') return `${num} · blank`;
+    if (front) return `${num} · ${p.label || 'front'}`;
+    return p.opener ? `${num} · chapter ${(result.chapters.find((c) => c.physical === i + 1) || {}).num ?? ''}`.trim() : num;
   });
 }
 
