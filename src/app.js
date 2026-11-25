@@ -343,9 +343,9 @@ async function loadSample() {
   try {
     status('Loading sample…');
     const get = (f) => fetch(f).then((r) => (r.ok ? r.text() : null)).catch(() => null);
-    const [md, front, cfg] = await Promise.all([get('sample/manuscript.md'), get('sample/frontmatter.md'), get('sample/book.json')]);
+    const [md, front] = await Promise.all([get('sample/manuscript.md'), get('sample/frontmatter.md')]);
     if (md == null) throw new Error('sample not found');
-    settings = resolveSettings(cfg ? JSON.parse(cfg) : {});
+    settings = resolveSettings({}); // the sample uses the default layout
     if (front != null) settings.frontMatter.text = front;
     store.set('mm.settings', settings);
     fillForm();
