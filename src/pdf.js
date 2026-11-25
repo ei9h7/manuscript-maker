@@ -81,7 +81,14 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
   const leading = Number(S.text.leading) || body.size * 1.4;
   const bodyAsc = body.size * 0.78;
   const bodyDesc = body.size * 0.25;
-  const firstBaseline = top + Math.round(body.size * 1.1);   // 36 + 12 = 48 at the defaults
+  // Running heads (and top folios) keep their capitals at least 3/8 in from the
+  // trim: KDP flags anything inside 1/4 in, and hardcover trimming varies more.
+  // If that pushes the head down, the text block moves down with it.
+  const SAFE = 0.375 * PT;
+  const headFont = role('body', { size: Math.max(7 * K, body.size * 0.78), style: 'italic' });
+  const headY = Math.max(14, top - 12, SAFE + headFont.size * 0.72);
+  const headsOnTop = S.pages.runningHeads || S.pages.folioPosition === 'top-outside';
+  const firstBaseline = top + Math.round(body.size * 1.1) + (headsOnTop ? Math.max(0, headY - (top - 12)) : 0); // 48 at the defaults
   // Bottom folios get at least one full line of leading between them and the text.
   const folioBottom = S.pages.folioPosition !== 'top-outside';
   const lastBaseline = Math.min(H - bottomM, folioBottom ? H - (Number(S.pages.folioOffset) || 24) - leading : Infinity);
@@ -537,8 +544,6 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
 
   // ---------- render ----------
   const folioFont = role('body', { size: Number(S.pages.folioSize) || 9, style: 'normal', color: S.pages.folioColor || '#000000' });
-  const headFont = role('body', { size: Math.max(7 * K, body.size * 0.78), style: 'italic' });
-  const headY = Math.max(14, top - 12);
   const folioFor = (idx) => {
     const n = idx + 1;
     const p = pages[idx];
