@@ -246,3 +246,11 @@ test('scale multiplies typography but not page geometry', async () => {
   const same = resolveSettings({});
   assert.equal(scaleSettings(same), same);
 });
+
+test('## Title chapters without numbers are already the manuscript format', () => {
+  const src = '## The White Room\n\nWhite walls.\n\n```\nSUBJECT: NOTICE ++\nRISK: LOW\n```\n\nI almost believe them.\n';
+  const r = markdownToManuscript(src);
+  assert.equal(r.text, src);
+  assert.match(r.report[0], /Already/);
+  assert.match(markdownToManuscript('## One\n\nA wrapped\nline.\n').report[0], /blank lines/);
+});

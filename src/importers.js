@@ -191,9 +191,28 @@ export function htmlToManuscript(html, { DOMParser = globalThis.DOMParser } = {}
  * Convert plain text or generic Markdown to the manuscript format.
  * Files already in the format (## n|Title) are returned unchanged.
  */
+/**
+ * `## Title` chapters with one paragraph per line (blank lines between them are
+ * fine) are already the manuscript format, even without `n|` numbers. Wrapped
+ * paragraphs (consecutive text lines outside ``` fences) mean it needs converting.
+ */
+function isManuscriptFormat(text) {
+  if (!/^##\s+\S/m.test(text) || /^#\s|^#{3,}\s/m.test(text)) return false;
+  let fence = false, prev = false;
+  for (const l of text.split('\n')) {
+    if (/^\s*```/.test(l)) { fence = !fence; prev = false; continue; }
+    if (fence) continue;
+    const isText = !!l.trim() && !/^\s*#{1,6}\s/.test(l);
+    if (isText && prev) return false;
+    prev = isText;
+  }
+  return true;
+}
+
 export function markdownToManuscript(raw) {
   const text = normalizeText(raw);
   if (/^#{1,2}\s+[^\n]*\|/m.test(text)) return { text, chapters: (text.match(/^#{1,2}\s/gm) || []).length, report: ['Already in manuscript format.'] };
+  if (isManuscriptFormat(text)) return { text, chapters: (text.match(/^##\s/gm) || []).length, report: ['Already in manuscript format.'] };
   const lines = text.split('\n');
   const nonEmpty = lines.filter((l) => l.trim()).length;
   const blanks = lines.length - nonEmpty;
