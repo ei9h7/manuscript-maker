@@ -94,8 +94,26 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
   const ensureRecto = () => { if (pages.length % 2 === 1) newPage('blank'); };
   const fr = () => frame(pages.length);
 
+  // Characters an embedded font has no glyph for would print blank: collect them.
+  const glyphMaps = new Map();
+  const missingGlyphs = new Map(); // char → font label
+  const checkGlyphs = (fam, style, text) => {
+    const k = `${fam}|${style}`;
+    let map = glyphMaps.get(k);
+    if (map === undefined) {
+      try { map = doc.getFont(fam, style)?.metadata?.cmap?.unicode?.codeMap || null; } catch { map = null; }
+      glyphMaps.set(k, map);
+    }
+    if (!map) return;
+    for (const ch of text) {
+      const c = ch.codePointAt(0);
+      if (c > 32 && c !== 0xa0 && !map[c] && !missingGlyphs.has(ch)) missingGlyphs.set(ch, FAMILIES[fam]?.label || fam);
+    }
+  };
+
   const textOp = (page, text, x, y, f, style = f.style, extra = {}) => {
     if (!text) return;
+    if (!f.builtin) checkGlyphs(f.fam, style, text);
     page.ops.push({ t: 'text', text: safe(f, text), x, y, fam: f.fam, style, size: f.size, cs: f.tracking || 0, color: f.color, ...extra });
   };
 
@@ -316,7 +334,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
   const newBodyPage = (ci) => { page = newPage('body', { chapter: ci }); y = firstBaseline; };
   const atTop = () => Math.abs(y - firstBaseline) < EPS;
 
-  const flowParagraph = (text, indent, ci, font = body) => {
+  const flowParagraph = (text, indent, ci, font = body, alignTo = align) => {
     const f = fr();
     const lines = breakText(text, font, f.width, { firstIndent: indent });
     const min = Math.max(1, Number(S.text.minLines) || 2);
@@ -333,13 +351,74 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
       }
       if (take > 0) {
         const ff = fr();
-        drawLines(page, lines.slice(i, i + take), font, ff.left, ff.width, y, leading, align);
+        drawLines(page, lines.slice(i, i + take), font, ff.left, ff.width, y, leading, alignTo);
         y += take * leading;
         i += take;
       }
       if (i < lines.length) newBodyPage(ci);
     }
     y += Number(S.text.paraGap) || 0;
+  };
+
+  // ``` log block: monospaced, line breaks kept, between two thin rules
+  const flowLog = (text, ci) => {
+    const mf = role('mono');
+    const L = S.log || {};
+    const ml = Number(L.leading) || mf.size * 1.3;
+    const inset = Number(L.indent) || 0;
+    const space = Number(L.space) || 0;
+    const pad = 6;
+    const asc = mf.size * 0.78, desc = mf.size * 0.28;
+    const mm = measureWith(mf);
+    const w = textWidth - inset * 2;
+    const rows = text.split('\n').flatMap((src) => {
+      if (!src.trim()) return [null];
+      const lead = src.match(/^\s*/)[0];
+      return breakLines([{ text: src.trim(), italic: false, bold: false }], w, { measure: mm, hyphenBreaks: false, firstIndent: lead ? mm(lead) : 0 });
+    });
+    const step = (r) => (r ? ml : ml * 0.6);
+    const limit = lastBaseline + bodyDesc;
+    const fitRows = (from, top) => {
+      let h = pad + asc, n = 0;
+      for (let k = from; k < rows.length; k++) {
+        const add = n === 0 ? 0 : step(rows[k - 1]);
+        if (top + h + add + desc + pad > limit + EPS) break;
+        h += add; n++;
+      }
+      return n;
+    };
+    let i = 0;
+    while (i < rows.length) {
+      if (y > lastBaseline + EPS) newBodyPage(ci);
+      let top = y - bodyAsc + (atTop() ? 0 : space);
+      let n = fitRows(i, top);
+      if (n < rows.length - i && !atTop()) { newBodyPage(ci); top = y - bodyAsc; n = fitRows(i, top); }
+      n = Math.max(1, n);
+      const f = fr();
+      const x = f.left + inset;
+      let by = top + pad + asc;
+      for (let k = i; k < i + n; k++) {
+        if (rows[k]) drawLines(page, [rows[k]], mf, x, w, by, ml, 'left');
+        if (k < i + n - 1) by += step(rows[k]);
+      }
+      const bottom = by + desc + pad;
+      if (L.rules !== false) {
+        page.ops.push({ t: 'rect', x, y: top, w, h: 0.5, color: L.ruleColor || '#8a8a8a' });
+        page.ops.push({ t: 'rect', x, y: bottom, w, h: 0.5, color: L.ruleColor || '#8a8a8a' });
+      }
+      y = bottom + space + bodyAsc;
+      i += n;
+      if (i < rows.length) newBodyPage(ci);
+    }
+  };
+
+  // *** scene break: a centred mark; never stranded at the foot of a page
+  const flowBreak = (ci) => {
+    if (y + leading * 2 > lastBaseline + EPS) newBodyPage(ci);
+    const mark = S.sceneBreak || '*';
+    const f = fr();
+    textOp(page, mark, f.left + (f.width - measureBody(mark)) / 2, y, body);
+    y += leading + (Number(S.text.paraGap) || 0);
   };
 
   const flowCallout = (text, ci, indent, next) => {
@@ -415,7 +494,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
       yy += Number(O.labelGap) || 24;
     }
     const tf = role('title');
-    yy = displayBlock(page, ch.title, tf, yy, Number(O.titleLeading) || tf.size * 1.13, oAlign);
+    yy = displayBlock(page, O.uppercase ? ch.title.toUpperCase() : ch.title, tf, yy, Number(O.titleLeading) || tf.size * 1.13, oAlign);
     if (ch.subtitle) {
       const sf = role('subtitle');
       yy = displayBlock(page, ch.subtitle, sf, yy + (Number(O.subtitleGap) || 27.5), sf.size * 1.3, oAlign);
@@ -428,8 +507,13 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
     if (y > lastBaseline) newBodyPage(ci);
 
     ch.blocks.forEach((b, bi) => {
-      const indent = bi === 0 && !S.text.indentFirst ? 0 : Number(S.text.indent) || 0;
-      if (b.type === 'callout') flowCallout(b.text, ci, indent, ch.blocks[bi + 1]);
+      const prevType = ch.blocks[bi - 1]?.type;
+      const flush = (bi === 0 && !S.text.indentFirst) || prevType === 'break';
+      const indent = flush ? 0 : Number(S.text.indent) || 0;
+      if (b.type === 'log') flowLog(b.text, ci);
+      else if (b.type === 'break') flowBreak(ci);
+      else if (b.type === 'callout') flowCallout(b.text, ci, indent, ch.blocks[bi + 1]);
+      else if (b.center) flowParagraph(b.text, 0, ci, body, 'center');
       else flowParagraph(b.text, indent, ci);
     });
   });
@@ -489,7 +573,10 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
     }
     // running heads
     if (S.pages.runningHeads && p.kind === 'body' && !p.opener) {
-      const txt = f.recto ? book.chapters[p.chapter]?.title : fmText(fm.title);
+      const which = f.recto ? (S.pages.runningHeadRecto || 'chapter') : (S.pages.runningHeadVerso || 'title');
+      const source = { title: fmText(fm['title.print'] ?? fm.title), author: fmText(fm['author.print'] ?? fm.author), chapter: book.chapters[p.chapter]?.title || '' };
+      let txt = source[which] || '';
+      if (txt && S.pages.runningHeadUppercase) txt = txt.toUpperCase();
       if (txt) {
         const hl = breakText(txt, headFont, f.width * 0.7, { hyphenBreaks: false });
         const s = hl[0].items.map((it) => it.segs.map((sg) => sg.text).join('')).join(' ') + (hl.length > 1 ? '…' : '');
@@ -527,6 +614,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
     }
   } catch (e) { warnings.push('Could not add PDF bookmarks: ' + e.message); }
 
+  for (const [ch, fam] of missingGlyphs) warnings.push(`“${ch}” (U+${ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}) isn’t in ${fam}, so it prints blank. Replace it in the text or pick another font.`);
   return {
     doc,
     warnings,

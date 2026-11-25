@@ -24,7 +24,10 @@ export const DEFAULTS = {
     folioOffset: 26,           // pt from page edge to folio baseline
     folioSize: 9,
     folioColor: '#141414',
-    runningHeads: false,       // verso: book title, recto: chapter title
+    runningHeads: false,
+    runningHeadVerso: 'title', // title | author | chapter | none
+    runningHeadRecto: 'chapter',
+    runningHeadUppercase: false,
     endEven: true,             // add a blank last page so the book ends on a verso (even page count)
   },
   fonts: {
@@ -33,6 +36,7 @@ export const DEFAULTS = {
     subtitle: { family: 'CrimsonPro', style: 'italic', size: 11, color: '#373737' },
     body: { family: 'CrimsonPro', style: 'normal', size: 11, color: '#000000' },
     callout: { family: 'Barlow', style: 'normal', size: 9.5, color: '#1f1f1f' },
+    mono: { family: 'CourierPrime', style: 'normal', size: 8.5, color: '#2a2a2a' },
   },
   text: {
     leading: 15.5,
@@ -69,7 +73,11 @@ export const DEFAULTS = {
     subtitleGap: 27.5,         // last title baseline → subtitle baseline
     afterGap: 40.5,            // subtitle baseline → top of the first text line
     ornament: false,
+    uppercase: false,          // set chapter titles in capitals (use fonts.title.tracking to space them)
   },
+  // ``` fenced log blocks and *** scene breaks
+  log: { leading: 11, indent: 24, rules: true, ruleColor: '#8a8a8a', space: 10 },
+  sceneBreak: '*',
   toc: { enabled: false, title: 'Contents', leaders: true, subtitles: false },
   input: { smartQuotes: true, smartDashes: true, ellipses: true, calloutPattern: '', calloutBoldLead: true },
   epub: { embedFonts: true, visibleToc: true, language: 'en' },

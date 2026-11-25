@@ -210,3 +210,26 @@ test('print/epub field variants and EPUB cover', async () => {
   const ops = pdf.layout[0].ops.map((o) => o.text).join(' ');
   assert.match(ops, /one—two/);
 });
+
+test('log blocks, scene breaks and centred display lines', async () => {
+  const md = '## The Room\nFirst.\n-----\nAfter the break.\n\n-----\n```\n[Log – A]\n\n"quoted," he says.\n```\n-----\n**DAD IS RIGHT.**\nEnd.\n-----\n## Next\nText.\n';
+  const b = parseManuscript(md, {});
+  const types = b.chapters[0].blocks.map((x) => x.type);
+  assert.deepEqual(types, ['p', 'break', 'p', 'log', 'p', 'p']); // breaks next to logs and at chapter ends dropped
+  assert.equal(b.chapters[0].blocks[3].text, '[Log – A]\n\n"quoted," he says.'); // straight quotes kept in logs
+  assert.equal(b.chapters[0].blocks[4].center, true);
+  assert.equal(lintText(md).filter((w) => /quote|hyphen/.test(w.code)).length, 0);
+  const S = resolveSettings({ opener: { uppercase: true } });
+  const book = prepareBook(md, S);
+  const r = buildPdf(book, S, { jsPDF, fontData: {} });
+  const ops = r.layout.flatMap((p) => p.ops);
+  assert.ok(ops.some((o) => o.t === 'text' && o.text === 'THE') && ops.some((o) => o.t === 'text' && o.text === 'ROOM'));
+  assert.ok(ops.some((o) => o.t === 'text' && o.fam === 'courier' && /Log/.test(o.text)));
+  assert.equal(ops.filter((o) => o.t === 'rect' && o.h === 0.5).length, 2);
+  const zip = await JSZip.loadAsync(await buildEpub(book, S, { JSZip }));
+  const ch = await zip.file('OEBPS/text/ch001.xhtml').async('string');
+  assert.match(ch, /<pre class="log">\[Log – A\]\n\n&quot;quoted,&quot; he says\.<\/pre>/);
+  assert.match(ch, /<p class="break" role="separator">\*<\/p>/);
+  assert.match(ch, /<p class="center"><strong>DAD IS RIGHT\.<\/strong><\/p>/);
+  assert.equal(serializeManuscript(b.chapters).match(/```/g).length, 2);
+});

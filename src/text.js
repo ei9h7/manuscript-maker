@@ -127,7 +127,11 @@ export function lintText(raw, { maxLines = 12 } = {}) {
   if (controls) add('control-char', 'Invisible control characters (removed automatically).', 0, '', 'auto');
   const zw = String(raw ?? '').match(ZERO_WIDTH_RE);
   if (zw) add('zero-width', 'Zero-width/BOM characters (removed automatically).', 0, '', 'auto');
+  let inFence = false;
   text.split('\n').forEach((line, i) => {
+    if (/^\s*```/.test(line)) { inFence = !inFence; return; }
+    if (inFence) return; // log blocks are printed exactly as written
+    if (/^\s*(?:([-*_])(?:\s*\1){2,}|⁂)\s*$/.test(line)) return; // scene break
     for (const r of LINT_RULES) {
       r.re.lastIndex = 0;
       let m;

@@ -94,6 +94,9 @@ Each line is one paragraph. Blank lines are ignored.
 |---|---|
 | `## n\|Title\|Subtitle` | Starts a chapter. The subtitle is optional. `## Title` with no number gets the next number. |
 | `[!callout] …` | A callout box. A short `Label:` at the start is set in bold. |
+| `-----` (or `***`, `⁂`) | A scene break: a centred `*`. The paragraph after it starts flush left. |
+| ```` ``` ```` … ```` ``` ```` | A log block: monospaced (Courier Prime), line breaks kept exactly, set between thin rules. Nothing inside is changed, so straight quotes stay straight. |
+| `**A short bold line.**` | When a paragraph is only a short bold line, it is centred as a display line. |
 | anything else | A body paragraph |
 | `\##`, `\[!callout]` | A literal `#` or `[` at the start of a paragraph |
 
@@ -229,9 +232,10 @@ To build the book from GitHub with no browser, use the workflow that comes with 
 | Trim | 5 × 8 in (360 × 576 pt) |
 | Margins | mirrored: inside 0.75 in, outside 0.5 in, head and foot 0.5 in. The text block is 270 pt wide. |
 | Body | Crimson Pro 11 pt, 15.5 pt leading, 6.5 pt between paragraphs, 12 pt first-line indent (none after a chapter heading), ragged right |
-| Chapter openers | always on a right-hand page, with a blank page inserted when needed. Left-aligned `CHAPTER 1` (Barlow 8 pt, letter-spaced, grey), title (Crimson Pro Semibold 19 pt), subtitle (italic 11 pt, grey). No page number on opener pages. |
+| Chapter openers | always on a right-hand page, with a blank page inserted when needed. Left-aligned `CHAPTER 1` (Barlow 8 pt, letter-spaced, grey), title (Crimson Pro Semibold 19 pt), subtitle (italic 11 pt, grey). No page number on opener pages. | For unnumbered chapters set `opener.label` to `none`; `opener.uppercase` sets titles in capitals (space them with `fonts.title.tracking`).
 | Callouts | Barlow 9.5 pt in a tinted box with a left rule, kept on one page |
 | Page numbers | front matter is counted i, ii, iii… (not printed by default). Arabic from chapter 1, in the bottom outside corner, with at least one line of space above. Blank pages are never numbered. |
+| Running heads | off by default. `pages.runningHeadVerso` / `runningHeadRecto` choose `title`, `author`, `chapter` or `none`; `runningHeadUppercase` sets them in capitals. |
 | Line breaking | greedy, measured with the real font metrics. Lines break at hyphens, dashes and soft hyphens. A word too long for a whole line is split at its hyphens first. A line never starts with a spaced em dash. |
 | Widows and orphans | at least two lines of a paragraph at the foot and the head of every page |
 | End | a blank last page is added so the page count is even |

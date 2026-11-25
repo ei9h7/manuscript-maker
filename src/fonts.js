@@ -16,6 +16,17 @@ export const FAMILIES = {
       bolditalic: `${CDN}/crimson-pro@0.4.2/600SemiBold_Italic/CrimsonPro_600SemiBold_Italic.ttf`,
     },
   },
+  CourierPrime: {
+    label: 'Courier Prime',
+    css: "'Courier Prime', 'Courier New', monospace",
+    fallback: 'courier',
+    faces: {
+      normal: `${CDN}/courier-prime@0.4.1/400Regular/CourierPrime_400Regular.ttf`,
+      italic: `${CDN}/courier-prime@0.4.1/400Regular_Italic/CourierPrime_400Regular_Italic.ttf`,
+      bold: `${CDN}/courier-prime@0.4.1/700Bold/CourierPrime_700Bold.ttf`,
+      bolditalic: `${CDN}/courier-prime@0.4.1/700Bold_Italic/CourierPrime_700Bold_Italic.ttf`,
+    },
+  },
   Barlow: {
     label: 'Barlow',
     css: "'Barlow', 'Helvetica Neue', Arial, sans-serif",

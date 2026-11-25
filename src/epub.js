@@ -70,7 +70,10 @@ p { margin: ${em(T.paraGap)} 0 0 0; text-indent: ${em(T.indent)}; text-align: ${
 p.first { text-indent: ${T.indentFirst ? em(T.indent) : '0'}; margin-top: 0; }
 section.chapter > header { margin: 3em 0 2.5em 0; text-align: ${S.opener.align === 'left' ? 'left' : 'center'}; page-break-inside: avoid; break-inside: avoid; }
 .chapter-label { ${cssFont(F.chapter, embedded)} font-size: ${em(F.chapter.size)}; letter-spacing: 0.2em; text-transform: uppercase; text-indent: 0; margin: 0 0 1em 0; text-align: inherit; }
-h1.chapter-title { ${cssFont(F.title, embedded)} font-size: ${em(F.title.size)}; line-height: 1.18; margin: 0; }
+h1.chapter-title { ${cssFont(F.title, embedded)} font-size: ${em(F.title.size)}; line-height: 1.18; margin: 0;${S.opener.uppercase ? ' text-transform: uppercase;' : ''}${F.title.tracking ? ` letter-spacing: ${+(F.title.tracking / F.title.size).toFixed(3)}em;` : ''} }
+pre.log { ${cssFont(F.mono || { family: 'courier' }, embedded)} font-size: ${em((F.mono || {}).size || 8.5)}; line-height: 1.3; white-space: pre-wrap; text-align: left; margin: 1.2em ${em((S.log || {}).indent || 0)}; padding: 0.6em 0; ${(S.log || {}).rules !== false ? `border-top: 0.5px solid ${(S.log || {}).ruleColor || '#8a8a8a'}; border-bottom: 0.5px solid ${(S.log || {}).ruleColor || '#8a8a8a'};` : ''} }
+p.break { text-align: center; text-indent: 0; margin: 1em 0; }
+p.center { text-align: center; text-indent: 0; }
 .chapter-subtitle { ${cssFont(F.subtitle, embedded)} font-size: ${em(F.subtitle.size)}; line-height: 1.3; text-indent: 0; margin: 0.6em 0 0 0; text-align: inherit; }
 ${C.style === 'box'
     ? `div.callout { ${cssFont(F.callout, embedded)} font-size: ${em(F.callout.size)}; line-height: ${+(C.leading / F.callout.size).toFixed(3)}; color: ${C.textColor}; ${C.tint ? `background-color: ${C.tintColor};` : ''} border-left: ${C.rule}px solid ${C.ruleColor}; padding: 0.7em 0.9em; margin: 1em 0; page-break-inside: avoid; break-inside: avoid; }
@@ -237,6 +240,9 @@ ${landmarks.map(([ty, href, label]) => `<li><a epub:type="${ty}" href="${href.re
     let first = true;
     const body = ch.blocks.map((b) => {
       if (b.type === 'callout') return `<div class="callout"><p>${runsToHtml(b.text)}</p></div>`;
+      if (b.type === 'log') return `<pre class="log">${escapeXml(b.text)}</pre>`;
+      if (b.type === 'break') { first = true; return `<p class="break" role="separator">${escapeXml(S.sceneBreak || '*')}</p>`; }
+      if (b.center) { first = false; return `<p class="center">${runsToHtml(b.text)}</p>`; }
       const cls = first ? ' class="first"' : '';
       first = false;
       return `<p${cls}>${runsToHtml(b.text)}</p>`;

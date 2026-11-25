@@ -30,11 +30,26 @@ export function parseManuscript(raw, opts = {}) {
   const chapters = [];
   const stray = [];
   let cur = null;
+  let fence = null; // open ``` log block: { lines, line }
+  const push = (block) => { if (cur) cur.blocks.push(block); else stray.push(block); };
 
   lines.forEach((rawLine, i) => {
     const line = i + 1;
     const t = rawLine.trim();
+    // ``` fenced block → a "log" block: monospaced, line breaks kept, no smartening
+    if (/^```/.test(t)) {
+      if (fence) {
+        while (fence.lines.length && !fence.lines[fence.lines.length - 1].trim()) fence.lines.pop();
+        while (fence.lines.length && !fence.lines[0].trim()) fence.lines.shift();
+        if (fence.lines.length) push({ type: 'log', text: fence.lines.join('\n'), line: fence.line });
+        fence = null;
+      } else fence = { lines: [], line };
+      return;
+    }
+    if (fence) { fence.lines.push(rawLine.replace(/\s+$/, '')); return; }
     if (!t) return;
+    // A line of only dashes, asterisks or underscores (3+), or ⁂ → scene break
+    if (/^(?:([-*_])(?:\s*\1){2,}|⁂)$/.test(t)) { push({ type: 'break', text: '', line }); return; }
     const h = HEADING_RE.exec(t);
     if (h) {
       const parts = h[1].split('|').map((s) => s.trim());
@@ -60,8 +75,20 @@ export function parseManuscript(raw, opts = {}) {
       text = text.replace(/^([^:*_\\]{1,48}):(\s)/, '**$1:**$2');
     }
     const block = { type, text: smart(text), line };
-    if (cur) cur.blocks.push(block); else stray.push(block);
+    // A paragraph that is entirely bold and short is a display line: centred
+    if (type === 'p' && /^\*\*[^*]+\*\*$/.test(text) && text.length <= 80) block.center = true;
+    push(block);
   });
+  if (fence) warnings.push({ code: 'unclosed-fence', line: fence.line, message: `A \`\`\` block opened on line ${fence.line} is never closed.` });
+
+  // Scene breaks: drop them at chapter edges, next to log blocks (which have
+  // their own rules), and collapse repeats.
+  const tidy = (blocks) => blocks.filter((b, i, a) => {
+    if (b.type !== 'break') return true;
+    const prev = a[i - 1], next = a[i + 1];
+    return prev && next && prev.type !== 'break' && prev.type !== 'log' && next.type !== 'log';
+  });
+  for (const ch of chapters) ch.blocks = tidy(ch.blocks);
 
   if (stray.length) {
     warnings.push({ code: 'text-before-first-chapter', line: stray[0].line,
@@ -80,6 +107,7 @@ export function parseManuscript(raw, opts = {}) {
     prev = ch.num;
     if (!ch.blocks.length) warnings.push({ code: 'empty-chapter', line: ch.line, message: `Chapter ${ch.num} “${ch.title}” has no text.` });
     for (const b of ch.blocks) {
+      if (b.type === 'log' || b.type === 'break') continue;
       const runs = parseInline(b.text);
       if (runs.unbalanced) warnings.push({ code: 'unbalanced-emphasis', line: b.line, message: `Unmatched * or _ on line ${b.line} – printed literally.` });
     }
@@ -141,6 +169,8 @@ export function serializeManuscript(chapters) {
     if (ch.subtitle) head.push(clean(ch.subtitle));
     out.push('## ' + head.join('|'));
     for (const b of ch.blocks) {
+      if (b.type === 'log') { out.push('```', b.text, '```'); continue; }
+      if (b.type === 'break') { out.push('***'); continue; }
       let t = String(b.text).replace(/\s*\n\s*/g, ' ').trim();
       if (!t) continue;
       if (b.type !== 'callout' && /^(#|\[!callout\])/i.test(t)) t = '\\' + t;
