@@ -82,10 +82,10 @@ div.callout p { margin: 0; text-indent: ${em(T.indent)}; text-align: ${T.align =
 .titlepage .subtitle { ${cssFont(F.subtitle, embedded)} font-size: 1.15em; margin: 1em 0 0 0; text-indent: 0; text-align: center; }
 .titlepage .author { ${cssFont(F.chapter, embedded)} letter-spacing: 0.18em; text-transform: uppercase; margin: 4em 0 0 0; text-indent: 0; text-align: center; }
 .titlepage .publisher { margin-top: 5em; text-indent: 0; text-align: center; font-size: 0.85em; }
-.praise h2 { ${cssFont(F.subtitle, embedded)} text-align: center; font-size: 1.2em; margin: 1em 0 1.5em 0; }
-.praise blockquote { margin: 0 0 1.5em 0; }
-.praise blockquote p { text-indent: 0; margin: 0; }
-.praise .by { text-align: right; font-style: italic; font-size: 0.9em; margin-top: 0.3em; }
+.praise h2 { ${cssFont(F.title, embedded)} text-align: center; font-size: 1.2em; margin: 1em 0 1.5em 0; }
+.praise blockquote { margin: 0 0 1.6em 0; text-align: center; }
+.praise blockquote p { text-indent: 0; margin: 0; text-align: center; font-style: italic; }
+.praise blockquote p.by { ${cssFont({ ...F.chapter, style: 'normal' }, embedded)} font-style: normal; text-transform: uppercase; letter-spacing: 0.18em; font-size: 0.7em; color: #5a5a5a; margin-top: 0.6em; }
 .copyright { font-size: 0.8em; padding-top: 30%; }
 .copyright p { text-indent: 0; text-align: left; margin: 0; }
 .copyright p.gap { margin-top: 1em; }
@@ -169,7 +169,7 @@ ${pub ? `<p class="publisher">${escapeXml(pub)}</p>` : ''}
       const heading = pg.type === 'praise' ? t(pg.fields.heading ?? 'Praise for {title}') : '';
       addPage(pg.type, heading || 'Epigraph', `<section epub:type="${pg.type === 'praise' ? 'preface' : 'epigraph'}" class="praise">
 ${heading ? `<h2>${escapeXml(heading)}</h2>` : ''}
-${pg.paras.map((para) => { const q = splitPraise(t(para)); return `<blockquote><p>${runsToHtml(pg.type === 'praise' ? `“${q.quote}”` : q.quote)}</p>${q.by ? `<p class="by">— ${escapeXml(q.by)}</p>` : ''}</blockquote>`; }).join('\n')}
+${pg.paras.map((para) => { const q = splitPraise(t(para)); return `<blockquote><p>${runsToHtml(pg.type === 'praise' ? `“${q.quote}”` : q.quote)}</p>${q.by ? `<p class="by">${escapeXml(q.by)}</p>` : ''}</blockquote>`; }).join('\n')}
 </section>`);
     } else if (pg.type === 'copyright') {
       const heading = t(pg.fields.heading ?? '');
