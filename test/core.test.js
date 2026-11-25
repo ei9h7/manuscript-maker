@@ -233,3 +233,16 @@ test('log blocks, scene breaks and centred display lines', async () => {
   assert.match(ch, /<p class="center"><strong>DAD IS RIGHT\.<\/strong><\/p>/);
   assert.equal(serializeManuscript(b.chapters).match(/```/g).length, 2);
 });
+
+test('scale multiplies typography but not page geometry', async () => {
+  const { resolveSettings, scaleSettings } = await import('../src/settings.js');
+  const S = scaleSettings(resolveSettings({ scale: 2, opener: { sinkage: 100 } }));
+  assert.equal(S.fonts.body.size, 22);
+  assert.equal(S.text.leading, 31);
+  assert.equal(S.text.indent, 24);
+  assert.equal(S.opener.sinkage, 100);
+  assert.equal(S.margins.inside, 0.75);
+  assert.equal(S.scale, 1);
+  const same = resolveSettings({});
+  assert.equal(scaleSettings(same), same);
+});

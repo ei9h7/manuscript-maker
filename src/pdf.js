@@ -9,6 +9,7 @@ import { parseInline } from './parser.js';
 import { numberToWords, toRoman } from './text.js';
 import { registerFonts, resolveFamily, winAnsiSafe, BUILTIN, FAMILIES } from './fonts.js';
 import { parseFrontMatter, fill, splitPraise } from './frontmatter.js';
+import { scaleSettings } from './settings.js';
 
 const PT = 72;
 const EPS = 0.01;
@@ -28,7 +29,9 @@ function compose(base, run) {
   return bo && it ? 'bolditalic' : bo ? 'bold' : it ? 'italic' : 'normal';
 }
 
-export function buildPdf(book, S, { jsPDF, fontData }) {
+export function buildPdf(book, S0, { jsPDF, fontData }) {
+  const S = scaleSettings(S0);
+  const K = S.scaled || 1;           // large-print factor for the fixed sizes below
   const W = S.trim.width * PT;
   const H = S.trim.height * PT;
   const doc = new jsPDF({ unit: 'pt', format: [W, H], orientation: W > H ? 'landscape' : 'portrait', compress: true, putOnlyUsedFonts: true });
@@ -175,7 +178,8 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
     return { f, lines: best };
   };
   /** Display block centred on the page (not the text frame), fitted to `width`. Returns last baseline. */
-  const pageCentered = (page, text, f, y, lead, width = 245, minScale = 0.82) => {
+  const pageCentered = (page, text, f, y, lead, width = 245 * K, minScale = 0.82) => {
+    width = Math.min(width, textWidth);
     const { f: g, lines } = fitBlock(text, f, width, minScale);
     return drawLines(page, lines, g, (W - width) / 2, width, y, lead * (g.size / f.size), 'center');
   };
@@ -191,38 +195,39 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
   const frontPage = {
     title(pg) {
       const p = newPage('front', { label: 'Title page' });
-      const tf = role('title', { size: 23, color: '#000000' });
-      let y = pageCentered(p, field(pg, 'title'), tf, top + 98, 27, 250, 0.9);
+      const tf = role('title', { size: 23 * K, color: '#000000' });
+      let y = pageCentered(p, field(pg, 'title'), tf, top + 98, 27 * K, 250 * K, 0.9);
       const sub = field(pg, 'subtitle');
-      if (sub) y = pageCentered(p, sub, role('subtitle', { color: '#000000' }), y + 45, 13.5, 230);
+      if (sub) y = pageCentered(p, sub, role('subtitle', { color: '#000000' }), y + 45 * K, 13.5 * K, 230 * K);
       const author = field(pg, 'author');
-      const af = role('chapter', { size: 10.5, tracking: 2.625, color: '#000000' });
-      if (author) trackedCentered(p, author.toUpperCase(), af, Math.max(y + 40, H - 151));
+      const af = role('chapter', { size: 10.5 * K, tracking: 2.625 * K, color: '#000000' });
+      if (author) trackedCentered(p, author.toUpperCase(), af, Math.max(y + 40 * K, H - 151));
       const pub = field(pg, 'publisher');
-      if (pub) pageCentered(p, pub, role('body', { size: 9 }), H - bottomM - 20, 12);
+      if (pub) pageCentered(p, pub, role('body', { size: 9 * K }), H - bottomM - 20, 12 * K);
     },
     halftitle(pg) {
       const p = newPage('front', { label: 'Half title' });
-      pageCentered(p, field(pg, 'title'), role('title', { size: 16 }), top + 110, 20, 230);
+      pageCentered(p, field(pg, 'title'), role('title', { size: 16 * K }), top + 110, 20 * K, 230 * K);
     },
     praise(pg) {
       let p = newPage('front', { label: 'Praise' });
-      const hf = role('title', { size: 13, color: '#141414' });
-      const qf = role('body', { size: 9.5, style: 'italic', color: '#191919' });
-      const af = role('chapter', { size: 7, style: 'normal', tracking: 1.75, color: '#5a5a5a' });
+      const hf = role('title', { size: 13 * K, color: '#141414' });
+      const qf = role('body', { size: 9.5 * K, style: 'italic', color: '#191919' });
+      const af = role('chapter', { size: 7 * K, style: 'normal', tracking: 1.75 * K, color: '#5a5a5a' });
+      const qw = Math.min(245 * K, textWidth);
       const heading = fmText(pg.fields.heading ?? 'Praise for {title}');
-      let y = heading ? pageCentered(p, heading, hf, top + 26, 13) + 41 : top + 40;
+      let y = heading ? pageCentered(p, heading, hf, top + 26, 13 * K) + 41 * K : top + 40;
       for (const para of pg.paras) {
         const q = splitPraise(fmText(para));
-        const { lines } = fitBlock(`“${q.quote}”`, qf, 245, 1); // balanced lines, no lone last word
-        if (y + (lines.length - 1) * 12 + (q.by ? 16 : 0) > lastBaseline + EPS) {
+        const { lines } = fitBlock(`“${q.quote}”`, qf, qw, 1); // balanced lines, no lone last word
+        if (y + (lines.length - 1) * 12 * K + (q.by ? 16 * K : 0) > lastBaseline + EPS) {
           p = newPage('front', { label: 'Praise (cont.)' });
           warnings.push('Praise page overflowed onto a second page.');
           y = firstBaseline;
         }
-        y = drawLines(p, lines, qf, (W - 245) / 2, 245, y, 12, 'center');
-        if (q.by) { y += 16; trackedCentered(p, q.by.toUpperCase(), af, y); }
-        y += 21;
+        y = drawLines(p, lines, qf, (W - qw) / 2, qw, y, 12 * K, 'center');
+        if (q.by) { y += 16 * K; trackedCentered(p, q.by.toUpperCase(), af, y); }
+        y += 21 * K;
       }
     },
     copyright(pg) {
@@ -230,7 +235,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
       // tight; a blank line in frontmatter.md starts a new group.
       const p = newPage('front', { label: 'Copyright' });
       const f = fr();
-      const cf = role('body', { size: Math.max(7, body.size * 0.78), color: '#1e1e1e' });
+      const cf = role('body', { size: Math.max(7 * K, body.size * 0.78), color: '#1e1e1e' });
       const hf = { ...cf, style: 'bold' };
       const lead = cf.size * 1.35;
       const gap = lead * 0.6;
@@ -259,18 +264,18 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
       const p = newPage('front', { label: 'Dedication' });
       const df = role('body', { style: 'italic' });
       let y = top + H * 0.25;
-      for (const para of pg.paras) y = pageCentered(p, fmText(para), df, y, leading) + leading + 6;
+      for (const para of pg.paras) y = pageCentered(p, fmText(para), df, y, leading) + leading + 6 * K;
     },
     epigraph(pg) {
       const p = newPage('front', { label: 'Epigraph' });
       const ef = role('body', { style: 'italic' });
-      const af = role('chapter', { size: 7, style: 'normal', tracking: 1.75, color: '#5a5a5a' });
+      const af = role('chapter', { size: 7 * K, style: 'normal', tracking: 1.75 * K, color: '#5a5a5a' });
       let y = top + H * 0.22;
       for (const para of pg.paras) {
         const q = splitPraise(fmText(para));
         y = pageCentered(p, q.quote, ef, y, leading);
-        if (q.by) { y += 18; trackedCentered(p, q.by.toUpperCase(), af, y); }
-        y += 30;
+        if (q.by) { y += 18 * K; trackedCentered(p, q.by.toUpperCase(), af, y); }
+        y += 30 * K;
       }
     },
     page(pg) {
@@ -278,7 +283,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
       const center = (pg.fields.align || '').toLowerCase() === 'center';
       const heading = fmText(pg.fields.heading ?? '');
       let y = firstBaseline;
-      if (heading) y = displayBlock(p, heading, role('title', { size: 15 }), top + Number(S.opener.sinkage || 42), 19, center ? 'center' : 'left') + 30;
+      if (heading) y = displayBlock(p, heading, role('title', { size: 15 * K }), top + Number(S.opener.sinkage || 42), 19 * K, center ? 'center' : 'left') + 30 * K;
       pg.paras.forEach((para, i) => {
         const f = fr();
         const lines = breakText(fmText(para), body, f.width, { firstIndent: center || i === 0 ? 0 : Number(S.text.indent) || 0 });
@@ -296,8 +301,8 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
     tocDone = true;
     ensureRecto();
     let p = newPage('toc', { label: 'Contents' });
-    const hf = role('title', { size: Math.max(14, role('title').size * 0.75) });
-    let y = displayBlock(p, S.toc.title || 'Contents', hf, top + S.opener.sinkage * 0.6, hf.size * 1.2) + 40;
+    const hf = role('title', { size: Math.max(14 * K, role('title').size * 0.75) });
+    let y = displayBlock(p, S.toc.title || 'Contents', hf, top + S.opener.sinkage * 0.6, hf.size * 1.2) + 40 * K;
     const ef = role('body');
     const sf = role('body', { size: body.size * 0.85, style: 'italic' });
     const numCol = measureBody('00') + 10;
@@ -367,7 +372,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
     const ml = Number(L.leading) || mf.size * 1.3;
     const inset = Number(L.indent) || 0;
     const space = Number(L.space) || 0;
-    const pad = 6;
+    const pad = 6 * K;
     const asc = mf.size * 0.78, desc = mf.size * 0.28;
     const mm = measureWith(mf);
     const w = textWidth - inset * 2;
@@ -509,7 +514,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
       yy = displayBlock(page, ch.subtitle, sf, yy + (Number(O.subtitleGap) || 27.5), sf.size * 1.3, oAlign);
     }
     if (O.ornament) {
-      const ow = 36, ox = oAlign === 'center' ? f.left + (f.width - ow) / 2 : f.left;
+      const ow = 36 * K, ox = oAlign === 'center' ? f.left + (f.width - ow) / 2 : f.left;
       page.ops.push({ t: 'rect', x: ox, y: yy + (Number(O.afterGap) || 0) / 2, w: ow, h: 0.6, color: '#555555' });
     }
     y = yy + (Number(O.afterGap) || 0) + bodyAsc;
@@ -532,7 +537,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
 
   // ---------- render ----------
   const folioFont = role('body', { size: Number(S.pages.folioSize) || 9, style: 'normal', color: S.pages.folioColor || '#000000' });
-  const headFont = role('body', { size: Math.max(7, body.size * 0.78), style: 'italic' });
+  const headFont = role('body', { size: Math.max(7 * K, body.size * 0.78), style: 'italic' });
   const headY = Math.max(14, top - 12);
   const folioFor = (idx) => {
     const n = idx + 1;

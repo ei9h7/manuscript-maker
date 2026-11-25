@@ -13,6 +13,9 @@ export const TRIM_PRESETS = {
 };
 
 export const DEFAULTS = {
+  // Large print: multiplies every type size, leading, gap and indent together
+  // (margins and trim stay put). 1.45 takes 11pt body type to about 16pt.
+  scale: 1,
   trim: { preset: '5x8', width: 5, height: 8 },
   margins: { mirrored: true, inside: 0.75, outside: 0.5, top: 0.5, bottom: 0.5 },
   pages: {
@@ -104,6 +107,33 @@ export function resolveSettings(over) {
   const p = TRIM_PRESETS[s.trim.preset];
   if (p) [s.trim.width, s.trim.height] = p;
   return s;
+}
+
+// Settings that are typographic lengths, multiplied by `scale`.
+const SCALED = [
+  'pages.folioSize',
+  'text.leading', 'text.paraGap', 'text.indent',
+  'callout.spaceBefore', 'callout.spaceAfter', 'callout.leading', 'callout.rule', 'callout.padding', 'callout.space',
+  'opener.labelGap', 'opener.titleLeading', 'opener.subtitleGap', 'opener.afterGap',
+  'log.leading', 'log.indent', 'log.space',
+];
+
+/** Apply `scale` to a resolved settings object. Returns a copy with scale 1. */
+export function scaleSettings(S) {
+  const k = Number(S.scale) || 1;
+  if (k === 1) return S;
+  const out = structuredClone(S);
+  for (const f of Object.values(out.fonts)) {
+    if (f.size) f.size = +(Number(f.size) * k).toFixed(2);
+    if (f.tracking) f.tracking = +(Number(f.tracking) * k).toFixed(3);
+  }
+  for (const p of SCALED) {
+    const v = Number(getPath(out, p));
+    if (Number.isFinite(v) && v) setPath(out, p, +(v * k).toFixed(2));
+  }
+  out.scale = 1;
+  out.scaled = k;
+  return out;
 }
 
 export function getPath(obj, path) {

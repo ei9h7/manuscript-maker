@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Command-line build: node bin/build.mjs manuscript.md [--config book.json] [--front frontmatter.md] [--pdf out.pdf] [--epub out.epub] [--no-fonts]
+// Command-line build: node bin/build.mjs manuscript.md [--config book.json] [--edition name] [--front frontmatter.md] [--pdf out.pdf] [--epub out.epub] [--no-fonts]
 // book.json and frontmatter.md next to the manuscript are picked up automatically.
+// --edition large-print layers book.large-print.json over book.json and builds only the PDF (dist/book-large-print.pdf).
 // A directory may be given instead of a file: every .md/.txt in it is concatenated in name order.
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -8,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { prepareBook } from '../src/frontmatter.js';
 import { lintText } from '../src/text.js';
-import { resolveSettings } from '../src/settings.js';
+import { resolveSettings, deepMerge } from '../src/settings.js';
 import { loadFonts } from '../src/fonts.js';
 import { buildPdf } from '../src/pdf.js';
 import { buildEpub } from '../src/epub.js';
@@ -18,15 +19,19 @@ const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args.splic
 const flag = (name) => { const i = args.indexOf(name); if (i >= 0) { args.splice(i, 1); return true; } return false; };
 const configPath = opt('--config');
 const frontPath = opt('--front');
+const edition = opt('--edition');
 let pdfOut = opt('--pdf');
 let epubOut = opt('--epub');
 const noFonts = flag('--no-fonts');
 const input = args[0];
 if (!input) {
-  console.error('usage: build.mjs <manuscript.md|dir> [--config book.json] [--front frontmatter.md] [--pdf out.pdf] [--epub out.epub] [--no-fonts]');
+  console.error('usage: build.mjs <manuscript.md|dir> [--config book.json] [--edition name] [--front frontmatter.md] [--pdf out.pdf] [--epub out.epub] [--no-fonts]');
   process.exit(2);
 }
-if (!pdfOut && !epubOut) { pdfOut = 'dist/book.pdf'; epubOut = 'dist/book.epub'; }
+if (!pdfOut && !epubOut) {
+  if (edition) pdfOut = `dist/book-${edition}.pdf`;
+  else { pdfOut = 'dist/book.pdf'; epubOut = 'dist/book.epub'; }
+}
 
 async function readInput(p) {
   const st = await fs.stat(p);
@@ -42,7 +47,13 @@ if (!cfgPath) {
   const guess = path.join((await fs.stat(input)).isDirectory() ? input : path.dirname(input), 'book.json');
   try { await fs.access(guess); cfgPath = guess; } catch { /* none */ }
 }
-const S = resolveSettings(cfgPath ? JSON.parse(await fs.readFile(cfgPath, 'utf8')) : {});
+let cfg = cfgPath ? JSON.parse(await fs.readFile(cfgPath, 'utf8')) : {};
+if (edition) {
+  const edPath = path.join(cfgPath ? path.dirname(cfgPath) : ((await fs.stat(input)).isDirectory() ? input : path.dirname(input)), `book.${edition}.json`);
+  cfg = deepMerge(cfg, JSON.parse(await fs.readFile(edPath, 'utf8')));
+  console.log(`edition: ${edPath}`);
+}
+const S = resolveSettings(cfg);
 let fmPath = frontPath;
 if (!fmPath) {
   const guess = path.join((await fs.stat(input)).isDirectory() ? input : path.dirname(input), 'frontmatter.md');

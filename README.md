@@ -188,6 +188,18 @@ To keep your settings with the book, click **Download book.json** and commit the
 }
 ```
 
+### Large print
+
+`scale` multiplies every type size, line spacing, paragraph gap, indent and chapter-opener gap together, so the page keeps its proportions. The trim, the margins and the chapter sinkage stay put. `1.45` takes 11pt body type to about 16pt on 22.5pt leading, which is in the usual large-print range. It is in the form as **Large print scale**.
+
+To keep a large-print edition next to the regular one, add a `book.large-print.json` with only what changes:
+
+```json
+{ "scale": 1.45 }
+```
+
+It is layered over `book.json`. Build it with `--edition large-print` (below), and the workflow builds it automatically when the file exists. The EPUB is the same for both editions, since readers choose their own type size.
+
 `input.calloutPattern` is a regular expression. Every paragraph that matches it becomes a callout, without adding `[!callout]` to the text. See `src/settings.js` for every key.
 
 ---
@@ -215,12 +227,13 @@ node bin/build.mjs path/to/manuscript.md --pdf out/book.pdf --epub out/book.epub
 ```
 
 - `book.json` and `frontmatter.md` next to the manuscript are picked up automatically. Use `--config` and `--front` to point elsewhere.
+- `--edition large-print` layers `book.large-print.json` over `book.json` and builds only the PDF, to `dist/book-large-print.pdf` unless `--pdf` says otherwise. Any name works: `--edition hardcover` reads `book.hardcover.json`.
 - `--no-fonts` skips the font download and uses Times.
 - `npm run build:sample` builds the sample into `dist/`.
 
 To build the book from GitHub with no browser, use the workflow that comes with the template. In an existing repo, copy [`templates/build-book.yml`](templates/build-book.yml) to `.github/workflows/build-book.yml`.
 
-- **Actions → Build book → Run workflow** attaches the PDF and EPUB to the run.
+- **Actions → Build book → Run workflow** attaches the PDF and EPUB to the run, plus a PDF for every `book.<edition>.json` in the repo (for example `the-book-large-print.pdf`).
 - Pushing a tag like `v1.0` also attaches them to a GitHub Release, so every proof is kept.
 
 ---

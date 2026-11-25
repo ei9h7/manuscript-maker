@@ -1,7 +1,8 @@
 # Builds the book with Manuscript Maker.
 #
 #   • Actions → "Build book" → Run workflow: the PDF and EPUB are attached
-#     to the run as a download.
+#     to the run as a download, plus a PDF for every book.<edition>.json
+#     (for example book.large-print.json → <repo>-large-print.pdf).
 #   • Push a tag like v1.0 (or create a release in the GitHub UI): the PDF and
 #     EPUB are also attached to a GitHub Release, so every proof is kept.
 #
@@ -51,6 +52,14 @@ jobs:
           npm ci --omit=dev
           name="${GITHUB_REPOSITORY#*/}"
           node bin/build.mjs "../book/$MANUSCRIPT" --pdf "../out/$name.pdf" --epub "../out/$name.epub"
+          # Extra print editions: book.large-print.json → <name>-large-print.pdf
+          dir="../book/$(dirname "$MANUSCRIPT")"
+          [ -d "../book/$MANUSCRIPT" ] && dir="../book/$MANUSCRIPT"
+          for f in "$dir"/book.*.json; do
+            [ -e "$f" ] || continue
+            ed="$(basename "$f" .json)"; ed="${ed#book.}"
+            node bin/build.mjs "../book/$MANUSCRIPT" --edition "$ed" --pdf "../out/$name-$ed.pdf"
+          done
 
       - name: Upload
         uses: actions/upload-artifact@v4
