@@ -160,6 +160,18 @@ export function plainText(text) {
 }
 
 /** Serialise a parsed book back to manuscript format (used by importers). */
+/** Pieces of ASCII art from an art.md: each ``` fenced block is one piece, kept exactly. */
+export function parseArt(text) {
+  const out = [];
+  let cur = null;
+  for (const line of String(text ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+    if (/^\s*```/.test(line)) {
+      if (cur) { if (cur.some((l) => l.trim())) out.push(cur.join('\n')); cur = null; } else cur = [];
+    } else if (cur) cur.push(line.replace(/\t/g, '    ').replace(/\s+$/, ''));
+  }
+  return out;
+}
+
 export function serializeManuscript(chapters) {
   const clean = (s) => String(s ?? '').replace(/\s*\n\s*/g, ' ').replace(/\|/g, '/').trim();
   const out = [];

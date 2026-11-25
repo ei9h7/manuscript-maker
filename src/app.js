@@ -1,7 +1,7 @@
 // Web UI wiring. Everything runs in the browser: the manuscript and token
 // never leave this page except to talk to api.github.com.
 
-import { plainText } from './parser.js';
+import { plainText, parseArt } from './parser.js';
 import { prepareBook, extractFrontMatter } from './frontmatter.js';
 import { lintText, escapeXml } from './text.js';
 import { resolveSettings, getPath, setPath, TRIM_PRESETS } from './settings.js';
@@ -26,6 +26,7 @@ const store = {
 // ------------------------------------------------------------ state
 let settings = resolveSettings(store.get('mm.settings') || {});
 let manuscript = store.get('mm.manuscript', true); // { text, name, source }
+let artText = ''; // art.md from the GitHub repo, if any
 let lastBuild = null;   // { url, result, book }
 let cover = null;       // EPUB cover: { bytes, type, name }
 let building = false;
@@ -189,6 +190,7 @@ async function build() {
     const { jsPDF } = libs();
     const t0 = performance.now();
     const book = prepareBook(manuscript.text, settings);
+    book.art = parseArt(artText);
     const S = resolveSettings(settings);
     const { data, errors } = await fontsFor(S);
     const result = buildPdf(book, S, { jsPDF, fontData: data });
@@ -295,6 +297,8 @@ async function loadGitHub() {
       fillForm();
       notes.push(`Layout loaded from ${res.configPath}.`);
     } else notes.push('No book.json found, so the current layout settings are used.');
+    artText = res.art || '';
+    if (res.art) notes.push(`ASCII art loaded from art.md (${parseArt(res.art).length} pieces; used when "art.enabled" is set).`);
     if (res.front != null) {
       settings.frontMatter.text = res.front;
       store.set('mm.settings', settings);

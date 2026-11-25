@@ -101,7 +101,35 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
     pages.push(p);
     return p;
   };
-  const ensureRecto = () => { if (pages.length % 2 === 1) newPage('blank'); };
+  // ---------- ASCII art fillers ----------
+  const artPieces = S.art?.enabled ? (book.art || []) : [];
+  let artNext = 0;
+  /** Centre the next art piece between yTop and yBottom on page `pg`. False if none left or it won't fit. */
+  const placeArt = (pg, yTop, yBottom) => {
+    if (artNext >= artPieces.length) return false;
+    const lines = artPieces[artNext].split('\n');
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    while (lines.length && !lines[0].trim()) lines.shift();
+    const base = role('mono');
+    const f = frame(pages.indexOf(pg) + 1);
+    const w0 = Math.max(...lines.map((l) => measureWith(base)(l)));
+    const size = Math.min(base.size, base.size * f.width / Math.max(w0, 1), (yBottom - yTop) / (lines.length * 1.15 + 0.2));
+    if (size < base.size * 0.5) return false;
+    const g = { ...base, size };
+    const lead = size * 1.15;
+    const w = w0 * size / base.size;
+    const h = (lines.length - 1) * lead + size * 1.06;
+    const x = f.left + (f.width - w) / 2;
+    const y0 = yTop + (yBottom - yTop - h) / 2 + size * 0.78;
+    lines.forEach((l, i) => textOp(pg, l, x, y0 + i * lead, g));
+    artNext++;
+    return true;
+  };
+  const ensureRecto = (fill = false) => {
+    if (pages.length % 2 === 0) return;
+    const b = newPage('blank');
+    if (fill && placeArt(b, top, H - bottomM)) b.kind = 'art';
+  };
   const fr = () => frame(pages.length);
 
   // Characters an embedded font has no glyph for would print blank: collect them.
@@ -344,6 +372,11 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
   let y = 0;
 
   const newBodyPage = (ci) => { page = newPage('body', { chapter: ci }); y = firstBaseline; };
+  /** A verso that ends a chapter with only a paragraph or so gets art in the space below. */
+  const fillShortVerso = () => {
+    if (!page || pages.length % 2 === 1 || page.opener || (page.paras || 0) >= (Number(S.art?.minParas) || 2)) return;
+    placeArt(page, y - bodyAsc + leading * 0.5, lastBaseline + bodyDesc);
+  };
   const atTop = () => Math.abs(y - firstBaseline) < EPS;
 
   const flowParagraph = (text, indent, ci, font = body, alignTo = align) => {
@@ -491,7 +524,8 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
   };
 
   book.chapters.forEach((ch, ci) => {
-    if (S.pages.chapterRecto) ensureRecto();
+    if (ci > 0) fillShortVerso();
+    if (S.pages.chapterRecto) ensureRecto(true);
     if (ci === 0) frontCount = pages.length;
     page = newPage('body', { chapter: ci, opener: true });
     chapterStart[ci] = pages.length;
@@ -531,16 +565,20 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
       const prevType = ch.blocks[bi - 1]?.type;
       const flush = (bi === 0 && !S.text.indentFirst) || prevType === 'break';
       const indent = flush ? 0 : Number(S.text.indent) || 0;
+      const p0 = pages.length - 1;
       if (b.type === 'log') flowLog(b.text, ci);
       else if (b.type === 'break') flowBreak(ci);
       else if (b.type === 'callout') flowCallout(b.text, ci, indent, ch.blocks[bi + 1]);
       else if (b.center) flowParagraph(b.text, 0, ci, body, 'center');
       else flowParagraph(b.text, indent, ci);
+      for (let k = p0; k < pages.length; k++) pages[k].paras = (pages[k].paras || 0) + 1;
     });
   });
 
   // ---------- closing blank ----------
-  if (S.pages.endEven && pages.length % 2 === 1) newPage('blank');
+  fillShortVerso();
+  if (S.pages.endEven) ensureRecto(true);
+  if (artPieces.length && artNext < artPieces.length) warnings.push(`${artPieces.length - artNext} of ${artPieces.length} art pieces had no empty verso to go on.`);
 
   // ---------- render ----------
   const folioFont = role('body', { size: Number(S.pages.folioSize) || 9, style: 'normal', color: S.pages.folioColor || '#000000' });
@@ -553,7 +591,7 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
       return { label, show };
     }
     const label = String(n - frontCount);
-    const show = p.kind !== 'blank' && (!p.opener || S.pages.openerFolio);
+    const show = p.kind !== 'blank' && p.kind !== 'art' && (!p.opener || S.pages.openerFolio);
     return { label, show };
   };
 

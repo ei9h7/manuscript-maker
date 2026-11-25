@@ -254,3 +254,15 @@ test('## Title chapters without numbers are already the manuscript format', () =
   assert.match(r.report[0], /Already/);
   assert.match(markdownToManuscript('## One\n\nA wrapped\nline.\n').report[0], /blank lines/);
 });
+
+test('art.md pieces fill blank versos', async () => {
+  const { parseArt } = await import('../src/parser.js');
+  const art = parseArt('```\n  /\\\n /  \\\n```\nnot art\n```\n[ok]\n```\n');
+  assert.deepEqual(art, ['  /\\\n /  \\', '[ok]']);
+  const S = resolveSettings({ art: { enabled: true } });
+  const md = '## 1|One\n\nShort.\n\n## 2|Two\n\nAlso short.\n';
+  const book = prepareBook(md, S);
+  book.art = art;
+  const res = buildPdf(book, S, { jsPDF, fontData: {} });
+  assert.ok(!res.warnings.some((w) => /art pieces/.test(w)));
+});

@@ -81,6 +81,10 @@ export const DEFAULTS = {
   // ``` fenced log blocks and *** scene breaks
   log: { leading: 11, indent: 24, rules: true, ruleColor: '#8a8a8a', space: 10 },
   sceneBreak: '*',
+  // ASCII art from art.md (``` fenced pieces), used in order: on a verso left blank so a
+  // chapter can open recto, and below the text of a verso that ends a chapter with fewer
+  // than `minParas` paragraphs (if the piece fits).
+  art: { enabled: false, minParas: 2, file: 'art.md' },
   toc: { enabled: false, title: 'Contents', leaders: true, subtitles: false },
   input: { smartQuotes: true, smartDashes: true, ellipses: true, calloutPattern: '', calloutBoldLead: true },
   epub: { embedFonts: true, visibleToc: true, language: 'en' },

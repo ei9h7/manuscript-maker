@@ -9,6 +9,7 @@ import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { prepareBook } from '../src/frontmatter.js';
 import { lintText } from '../src/text.js';
+import { parseArt } from '../src/parser.js';
 import { resolveSettings, deepMerge } from '../src/settings.js';
 import { loadFonts } from '../src/fonts.js';
 import { buildPdf } from '../src/pdf.js';
@@ -61,6 +62,11 @@ if (!fmPath) {
 }
 if (fmPath) S.frontMatter.text = await fs.readFile(fmPath, 'utf8');
 const book = prepareBook(raw, S);
+if (S.art?.enabled) {
+  const artPath = path.join((await fs.stat(input)).isDirectory() ? input : path.dirname(input), S.art.file || 'art.md');
+  try { book.art = parseArt(await fs.readFile(artPath, 'utf8')); console.log(`art: ${book.art.length} pieces from ${artPath}`); }
+  catch { console.warn(`art: ${artPath} not found`); }
+}
 console.log(`front matter: ${book.front.source === 'manuscript' ? 'from the manuscript' : fmPath || 'built-in default'} (${book.front.pages.map((p) => p.type).join(', ')})`);
 for (const w of book.front.warnings) console.warn(`front: ${w.message}`);
 let cover = null;

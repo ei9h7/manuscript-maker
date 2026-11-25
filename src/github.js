@@ -86,7 +86,10 @@ export async function loadFromGitHub(ref, token, { fetchFn = globalThis.fetch.bi
       break;
     } catch (e) { if (e.status !== 404) throw e; }
   }
-  return { text, files, config, configPath: foundAt, front, frontPath, dir };
+  let art = null;
+  try { art = await request(contentsUrl(ref, dir ? `${dir}/art.md` : 'art.md'), token, true, fetchFn); }
+  catch (e) { if (e.status !== 404) throw e; }
+  return { text, files, config, configPath: foundAt, front, frontPath, dir, art };
 }
 
 /**

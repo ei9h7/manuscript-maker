@@ -188,6 +188,26 @@ To keep your settings with the book, click **Download book.json** and commit the
 }
 ```
 
+### ASCII art on empty pages
+
+For a zine-style edition, put ASCII art in an `art.md` next to the manuscript, each piece between `` ``` `` lines:
+
+````
+```
+   .-------------------.
+   |  > PROCESSING...  |
+   '-------------------'
+```
+````
+
+and turn it on in the settings (for example in `book.half-letter.json`):
+
+```json
+{ "art": { "enabled": true }, "pages": { "chapterRecto": true } }
+```
+
+The pieces are used in order. Each goes on a left-hand page that would otherwise be blank (before a chapter that opens on the right, or the last page). It can also go below the text of a left-hand page that ends a chapter with only one paragraph. `art.minParas` sets that limit (2 by default). Pieces are centred, printed in the typewriter font exactly as typed, and shrunk if they are too wide. Pieces with nowhere to go are listed in the build warnings.
+
 ### Large print
 
 `scale` multiplies every type size, line spacing, paragraph gap, indent and chapter-opener gap together, so the page keeps its proportions. The trim, the margins and the chapter sinkage stay put. `1.45` takes 11pt body type to about 16pt on 22.5pt leading, which is in the usual large-print range. It is in the form as **Large print scale**.
