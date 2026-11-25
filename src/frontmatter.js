@@ -25,6 +25,8 @@
 // Page types: title, halftitle, praise, copyright, dedication, epigraph,
 // page (any heading + text), blank, toc (contents, if enabled).
 // {title} {subtitle} {author} {year} {publisher} {isbn} are filled in anywhere.
+// Any field can have a print-only or EPUB-only version: `subtitle.epub: …`.
+// `cover: cover.jpg` (book-wide) sets the EPUB cover image.
 // On the copyright page, a blank line starts a new group: lines in a group
 // sit tight together, groups get a little space between them.
 
@@ -32,7 +34,7 @@ import { normalizeText, smartenText } from './text.js';
 import { parseManuscript } from './parser.js';
 
 export const PAGE_TYPES = ['title', 'halftitle', 'praise', 'copyright', 'dedication', 'epigraph', 'page', 'blank', 'toc'];
-export const FIELDS = ['title', 'subtitle', 'author', 'publisher', 'year', 'isbn', 'heading', 'align', 'language', 'identifier'];
+export const FIELDS = ['title', 'subtitle', 'author', 'publisher', 'year', 'isbn', 'heading', 'align', 'language', 'identifier', 'cover'];
 
 export const DEFAULT_FRONT_MATTER = `year: ${new Date().getFullYear()}
 
@@ -75,9 +77,11 @@ export function parseFrontMatter(raw, opts = {}) {
       pages.push(cur);
       return;
     }
-    const kv = /^([a-z]+):\s*(.*)$/i.exec(t);
+    // key: value, or key.print: / key.epub: for a version used in one output only
+    const kv = /^([a-z]+)(\.(?:print|epub))?:\s*(.*)$/i.exec(t);
     if (kv && FIELDS.includes(kv[1].toLowerCase()) && (!cur || !cur.paras.length)) {
-      (cur ? cur.fields : meta)[kv[1].toLowerCase()] = smart(kv[2]);
+      const key = kv[1].toLowerCase() + (kv[2] || '').toLowerCase();
+      (cur ? cur.fields : meta)[key] = key === 'cover' ? kv[3].trim() : smart(kv[3]);
       return;
     }
     if (!cur) { warnings.push({ line: i + 1, message: `Front-matter text before the first [page] (line ${i + 1}) is ignored.` }); return; }
@@ -89,7 +93,7 @@ export function parseFrontMatter(raw, opts = {}) {
   // Title-page fields are book-wide too.
   for (const p of pages) {
     if (p.type !== 'title') continue;
-    for (const k of ['title', 'subtitle', 'author', 'publisher']) if (p.fields[k] && meta[k] == null) meta[k] = p.fields[k];
+    for (const k of Object.keys(p.fields)) if (/^(title|subtitle|author|publisher)(\.(print|epub))?$/.test(k) && meta[k] == null) meta[k] = p.fields[k];
   }
   if (!meta.year) meta.year = String(new Date().getFullYear());
   return { meta, pages, warnings };

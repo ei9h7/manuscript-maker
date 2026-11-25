@@ -226,10 +226,16 @@
           <li><code>[title]</code> starts a page. Types: <code>title</code>, <code>halftitle</code>, <code>praise</code>, <code>copyright</code>, <code>dedication</code>, <code>epigraph</code>, <code>page</code>, <code>blank</code>, <code>toc</code>.</li>
           <li><code>key: value</code> lines right after it set fields: <code>title</code>, <code>subtitle</code>, <code>author</code>, <code>publisher</code>, <code>heading</code>, <code>align: center</code>.</li>
           <li>Every other line is a paragraph. On praise and epigraph pages, put the source after a spaced dash: <code>Quote. — The Sample Review</code>.</li>
-          <li>Lines before the first page set book-wide values, like <code>year: 2026</code> or <code>isbn: …</code>. <code>{title}</code>, <code>{author}</code> and <code>{year}</code> are filled in anywhere.</li>
+          <li>Lines before the first page set book-wide values, like <code>year: 2026</code>, <code>isbn: …</code> or <code>cover: cover.jpg</code> (the EPUB cover).</li>
+          <li>Add <code>.print</code> or <code>.epub</code> to a key for a version used in one output only, e.g. <code>subtitle.epub: …</code>.</li>
+          <li><code>{title}</code>, <code>{author}</code> and <code>{year}</code> are filled in anywhere.</li>
           <li><code>// </code> starts a comment line.</li>
         </ul>
       </details>
+      <label>EPUB cover image <span class="hint">(JPEG or PNG, about 1600 × 2560 px)</span>
+        <input type="file" id="cover-file" accept="image/jpeg,image/png">
+      </label>
+      <p class="hint" id="cover-info">No cover image. Set <code>cover: cover.jpg</code> in the front matter, or choose a file.</p>
       <div class="form-actions"><button type="button" id="btn-front">Download frontmatter.md</button></div>
     </details>
 

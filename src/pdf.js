@@ -169,7 +169,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
 
   // ---------- front matter (from the frontmatter.md format) ----------
   const fmText = (s) => fill(s, fm);
-  const field = (pg, k) => fmText(pg.fields[k] ?? fm[k] ?? '');
+  const field = (pg, k) => fmText(pg.fields[k + '.print'] ?? pg.fields[k] ?? fm[k + '.print'] ?? fm[k] ?? '');
   const frontPage = {
     title(pg) {
       const p = newPage('front', { label: 'Title page' });
@@ -517,7 +517,7 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
 
   // ---------- metadata & bookmarks ----------
   doc.setProperties({
-    title: fmText(fm.title), subject: fmText(fm.subtitle), author: fmText(fm.author),
+    title: fmText(fm.title), subject: fmText(fm['subtitle.print'] ?? fm.subtitle), author: fmText(fm.author),
     creator: 'Manuscript Maker', keywords: '',
   });
   try { doc.setLanguage?.(S.epub.language === 'en' ? 'en-US' : S.epub.language); } catch { /* optional */ }

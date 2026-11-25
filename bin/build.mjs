@@ -52,6 +52,15 @@ if (fmPath) S.frontMatter.text = await fs.readFile(fmPath, 'utf8');
 const book = prepareBook(raw, S);
 console.log(`front matter: ${book.front.source === 'manuscript' ? 'from the manuscript' : fmPath || 'built-in default'} (${book.front.pages.map((p) => p.type).join(', ')})`);
 for (const w of book.front.warnings) console.warn(`front: ${w.message}`);
+let cover = null;
+if (book.front.meta.cover) {
+  const base = fmPath ? path.dirname(fmPath) : ((await fs.stat(input)).isDirectory() ? input : path.dirname(input));
+  const coverPath = path.resolve(base, book.front.meta.cover);
+  try {
+    cover = { bytes: await fs.readFile(coverPath), type: /\.png$/i.test(coverPath) ? 'image/png' : 'image/jpeg' };
+    console.log(`cover: ${coverPath}`);
+  } catch { console.warn(`cover: ${coverPath} not found – EPUB built without a cover`); }
+}
 
 for (const w of lintText(raw)) console.warn(`lint: ${w.message} ×${w.count}${w.lines.length ? ' (lines ' + w.lines.join(', ') + ')' : ''}`);
 for (const w of book.warnings) console.warn(`warn: ${w.message}`);
@@ -70,7 +79,7 @@ if (pdfOut) {
   console.log(`PDF  → ${pdfOut} (${res.pageCount} pages, ${Date.now() - t} ms)`);
 }
 if (epubOut) {
-  const bytes = await buildEpub(book, S, { JSZip, fontData: S.epub.embedFonts ? data : {} });
+  const bytes = await buildEpub(book, S, { JSZip, fontData: S.epub.embedFonts ? data : {}, cover });
   await fs.mkdir(path.dirname(epubOut), { recursive: true });
   await fs.writeFile(epubOut, bytes);
   console.log(`EPUB → ${epubOut}`);

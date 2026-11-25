@@ -147,7 +147,8 @@ No part of this book may be reproduced without permission.
 
 - **`key: value` lines** right after the bracket set that page's fields: `title`, `subtitle`, `author`, `publisher`, `heading`, `align`.
 - **Every other line** is one paragraph.
-- **Book-wide values** go above the first page: `year`, `isbn`, `publisher`, `language`, `identifier`.
+- **Book-wide values** go above the first page: `year`, `isbn`, `publisher`, `language`, `identifier`, and `cover` (an image in the repo, e.g. `cover: cover.jpg`, used as the EPUB cover).
+- **One output only:** add `.print` or `.epub` to a key, e.g. `subtitle.epub: …` for a version used only in the EPUB.
 - **Placeholders** `{title}`, `{subtitle}`, `{author}`, `{year}`, `{publisher}` and `{isbn}` are filled in anywhere.
 - **`//`** starts a comment line.
 
@@ -278,7 +279,6 @@ npm test
 ### Ideas
 
 - dictionary hyphenation (today, add soft hyphens `U+00AD` where you want breaks)
-- EPUB cover image
 - drop caps and small-caps lead-ins
 - PDF/X output for printers
 

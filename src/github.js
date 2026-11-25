@@ -34,6 +34,7 @@ async function request(url, token, raw, fetchFn) {
   if (res.status === 401) throw new Error('GitHub rejected the token (401). It may be expired or mistyped.');
   if (res.status === 403) throw new Error(`GitHub refused access (403)${res.headers.get('x-ratelimit-remaining') === '0' ? ' – rate limit reached, add a token or wait' : ''}.`);
   if (!res.ok) throw new Error(`GitHub error ${res.status}`);
+  if (raw === 'binary') return res.arrayBuffer();
   return raw ? res.text() : res.json();
 }
 
@@ -85,5 +86,17 @@ export async function loadFromGitHub(ref, token, { fetchFn = globalThis.fetch.bi
       break;
     } catch (e) { if (e.status !== 404) throw e; }
   }
-  return { text, files, config, configPath: foundAt, front, frontPath };
+  return { text, files, config, configPath: foundAt, front, frontPath, dir };
+}
+
+/**
+ * Fetch a binary file (e.g. the cover image) from the repo. `path` is resolved
+ * against `baseDir` unless it starts with "/".
+ */
+export async function fetchRepoFile(ref, token, path, baseDir = '', { fetchFn = globalThis.fetch.bind(globalThis) } = {}) {
+  const parts = (path.startsWith('/') ? path.slice(1) : (baseDir ? `${baseDir}/${path}` : path)).split('/');
+  const out = [];
+  for (const p of parts) { if (!p || p === '.') continue; if (p === '..') out.pop(); else out.push(p); }
+  const full = out.join('/');
+  return { bytes: await request(contentsUrl(ref, full), token, 'binary', fetchFn), path: full };
 }

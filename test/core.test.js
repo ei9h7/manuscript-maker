@@ -189,3 +189,24 @@ test('front matter at the top of the manuscript', () => {
   const r = buildPdf(book, resolveSettings({}), { jsPDF, fontData: {} });
   assert.equal(r.frontCount, 2);
 });
+
+test('print/epub field variants and EPUB cover', async () => {
+  const fm = parseFrontMatter('cover: art/cover.jpg\n[title]\ntitle: T\nsubtitle: one—two\nsubtitle.epub: one… two\n');
+  assert.equal(fm.meta.cover, 'art/cover.jpg');
+  assert.equal(fm.meta.subtitle, 'one—two');
+  assert.equal(fm.meta['subtitle.epub'], 'one… two');
+  const S = resolveSettings({});
+  const book = prepareBook('## 1|A\nhi\n', S);
+  book.front = fm;
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  const zip = await JSZip.loadAsync(await buildEpub(book, S, { JSZip, cover: { bytes: jpeg, type: 'image/jpeg' } }));
+  const opf = await zip.file('OEBPS/content.opf').async('string');
+  assert.match(opf, /<item id="cover-image" href="images\/cover.jpg" media-type="image\/jpeg" properties="cover-image"\/>/);
+  assert.match(opf, /<meta name="cover" content="cover-image"\/>/);
+  assert.match(opf, /<itemref idref="cover"\/>\n<itemref idref="front1"\/>/);
+  const title = await zip.file('OEBPS/text/front1-title.xhtml').async('string');
+  assert.match(title, /one… two/);
+  const pdf = buildPdf(book, S, { jsPDF, fontData: {} });
+  const ops = pdf.layout[0].ops.map((o) => o.text).join(' ');
+  assert.match(ops, /one—two/);
+});

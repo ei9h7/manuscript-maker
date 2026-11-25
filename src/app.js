@@ -9,7 +9,7 @@ import { FAMILIES, BUILTIN, loadFonts } from './fonts.js';
 import { buildPdf } from './pdf.js';
 import { buildEpub } from './epub.js';
 import { importFile, markdownToManuscript } from './importers.js';
-import { parseRepoRef, loadFromGitHub } from './github.js';
+import { parseRepoRef, loadFromGitHub, fetchRepoFile } from './github.js';
 import { renderSpreads } from './preview.js';
 import { toRoman } from './text.js';
 
@@ -27,6 +27,7 @@ const store = {
 let settings = resolveSettings(store.get('mm.settings') || {});
 let manuscript = store.get('mm.manuscript', true); // { text, name, source }
 let lastBuild = null;   // { url, result, book }
+let cover = null;       // EPUB cover: { bytes, type, name }
 let building = false;
 let queued = false;
 
@@ -252,7 +253,7 @@ async function downloadEpub() {
     const S = resolveSettings(settings);
     const book = prepareBook(manuscript.text, S);
     const { data } = S.epub.embedFonts ? await fontsFor(S) : { data: {} };
-    const blob = await buildEpub(book, S, { JSZip, fontData: data, type: 'blob' });
+    const blob = await buildEpub(book, S, { JSZip, fontData: data, type: 'blob', cover });
     download(blob, `${slug(book.front.meta.title)}.epub`);
     status('EPUB downloaded.', 'ok');
   } catch (e) {
@@ -304,6 +305,16 @@ async function loadGitHub() {
     if (res.files.length > 1) notes.push(`Joined ${res.files.length} files: ${res.files.join(', ')}`);
     const conv = markdownToManuscript(res.text);
     if (!/Already in manuscript format/.test(conv.report[0])) notes.push(...conv.report);
+    setCover(null);
+    const coverRef = prepareBook(conv.text, settings).front.meta.cover;
+    if (coverRef) {
+      try {
+        const base = res.frontPath ? res.frontPath.split('/').slice(0, -1).join('/') : res.dir;
+        const f = await fetchRepoFile(ref, token, coverRef, base);
+        setCover({ bytes: f.bytes, type: /\.png$/i.test(f.path) ? 'image/png' : 'image/jpeg', name: f.path });
+        notes.push(`EPUB cover loaded from ${f.path}.`);
+      } catch (e) { notes.push(`Cover “${coverRef}” could not be loaded: ${e.message}`); }
+    }
     setManuscript(conv.text, res.files.length > 1 ? `${ref.path}/` : res.files[0], `github.com/${ref.owner}/${ref.repo}${ref.ref ? ` @ ${ref.ref}` : ''}`, notes);
   } catch (e) {
     console.error(e);
@@ -340,6 +351,12 @@ async function loadFile(file) {
     console.error(e);
     status(e.message, 'err');
   }
+}
+
+function setCover(c) {
+  cover = c;
+  const info = $('#cover-info');
+  if (info) info.textContent = c ? `Using ${c.name} (${Math.round(c.bytes.byteLength / 1024)} KB)` : 'No cover image. Set cover: cover.jpg in the front matter, or choose a file.';
 }
 
 async function loadSample() {
@@ -396,6 +413,12 @@ function init() {
   $('#btn-pdf').addEventListener('click', () => lastBuild && download(lastBuild.blob, `${slug(lastBuild.book.front.meta.title)}.pdf`));
   $('#btn-epub').addEventListener('click', downloadEpub);
   $('#btn-md').addEventListener('click', () => manuscript && download(new Blob([manuscript.text], { type: 'text/markdown;charset=utf-8' }), `${slug(manuscript.name.replace(/\.\w+$/, ''))}.md`));
+  $('#cover-file').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setCover({ bytes: await f.arrayBuffer(), type: f.type === 'image/png' ? 'image/png' : 'image/jpeg', name: f.name });
+    status(`Cover set: ${f.name}. It is used for the EPUB.`, 'ok');
+  });
   $('#btn-front').addEventListener('click', () => download(new Blob([settings.frontMatter.text], { type: 'text/markdown;charset=utf-8' }), 'frontmatter.md'));
   $('#btn-json').addEventListener('click', () => download(new Blob([JSON.stringify(diff({ ...settings, frontMatter: undefined }, resolveSettings({})) || {}, null, 2) + '\n'], { type: 'application/json' }), 'book.json'));
   $('#btn-reset').addEventListener('click', () => {

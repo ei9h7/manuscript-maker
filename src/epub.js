@@ -94,6 +94,9 @@ div.callout p { margin: 0; text-indent: ${em(T.indent)}; text-align: ${T.align =
 .frontpage.centered { text-align: center; }
 .frontpage.centered p { text-indent: 0; text-align: center; }
 .dedication { text-align: center; font-style: italic; padding-top: 25%; }
+body.cover { margin: 0; padding: 0; }
+.cover { margin: 0; padding: 0; text-align: center; }
+.cover img { max-width: 100%; max-height: 100vh; height: auto; }
 nav#toc ol { list-style: none; padding: 0; margin: 0; }
 nav#toc li { margin: 0.5em 0; }
 nav#toc a { text-decoration: none; color: inherit; }
@@ -106,9 +109,10 @@ nav#landmarks { display: none; }
 /**
  * @param book   parsed manuscript
  * @param S      resolved settings
- * @param deps   { JSZip, fontData?: {Family: {style: ArrayBuffer}}, type?: 'uint8array'|'blob' }
+ * @param deps   { JSZip, fontData?: {Family: {style: ArrayBuffer}}, type?: 'uint8array'|'blob',
+ *                 cover?: { bytes: ArrayBuffer|Uint8Array, type: 'image/jpeg'|'image/png' } }
  */
-export async function buildEpub(book, S, { JSZip, fontData = {}, type = 'uint8array' }) {
+export async function buildEpub(book, S, { JSZip, fontData = {}, type = 'uint8array', cover = null }) {
   const FM = book.front || parseFrontMatter(S.frontMatter?.text || '', S.input);
   const fm = FM.meta;
   const t = (s) => fill(s, fm);
@@ -147,9 +151,19 @@ export async function buildEpub(book, S, { JSZip, fontData = {}, type = 'uint8ar
   }
   add('css', 'styles.css', 'text/css', buildCss(S, embedded));
 
-  // Front matter (blank pages and the contents page are print-only)
+  // Cover image: first page in reading order, flagged for e-reader libraries
   const landmarks = [];
-  const field = (pg, k) => t(pg.fields[k] ?? fm[k] ?? '');
+  let coverMeta = '';
+  if (cover?.bytes) {
+    const ext = cover.type === 'image/png' ? 'png' : 'jpg';
+    add('cover-image', `images/cover.${ext}`, cover.type === 'image/png' ? 'image/png' : 'image/jpeg', cover.bytes, { props: 'cover-image' });
+    add('cover', 'text/cover.xhtml', 'application/xhtml+xml', page(title, lang, 'cover', `<section epub:type="cover" class="cover"><img src="../images/cover.${ext}" alt="${escapeXml(title)}"/></section>`), { inSpine: true });
+    landmarks.push(['cover', 'text/cover.xhtml', 'Cover']);
+    coverMeta = '<meta name="cover" content="cover-image"/>\n';
+  }
+
+  // Front matter (blank pages and the contents page are print-only)
+  const field = (pg, k) => t(pg.fields[k + '.epub'] ?? pg.fields[k] ?? fm[k + '.epub'] ?? fm[k] ?? '');
   FM.pages.forEach((pg, n) => {
     const id = `front${n + 1}`;
     const href = `text/${id}-${pg.type}.xhtml`;
@@ -260,7 +274,7 @@ ${book.chapters.map((ch, i) => `<navPoint id="np${i + 1}" playOrder="${i + 1}"><
 <dc:language>${escapeXml(lang)}</dc:language>
 ${fm.publisher ? `<dc:publisher>${escapeXml(t(fm.publisher))}</dc:publisher>` : ''}
 ${FM.pages.find((p) => p.type === 'copyright')?.paras[0] ? `<dc:rights>${escapeXml(t(FM.pages.find((p) => p.type === 'copyright').paras[0]))}</dc:rights>` : ''}
-<meta property="dcterms:modified">${modified}</meta>
+${coverMeta}<meta property="dcterms:modified">${modified}</meta>
 </metadata>
 <manifest>
 ${manifest.join('\n')}
