@@ -374,7 +374,8 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
     const rows = text.split('\n').flatMap((src) => {
       if (!src.trim()) return [null];
       const lead = src.match(/^\s*/)[0];
-      return breakLines([{ text: src.trim(), italic: false, bold: false }], w, { measure: mm, hyphenBreaks: false, firstIndent: lead ? mm(lead) : 0 });
+      return breakLines([{ text: src.trim().replace(/▲/g, '\u00A0'), italic: false, bold: false }], w, { measure: mm, hyphenBreaks: false, firstIndent: lead ? mm(lead) : 0 })
+        .map((r) => Object.assign(r, { lead: lead ? mm(lead) : 0, tris: [...src.trim()].map((c, col) => (c === '▲' ? col : -1)).filter((c) => c >= 0) }));
     });
     const step = (r) => (r ? ml : ml * 0.6);
     const limit = lastBaseline + bodyDesc;
@@ -398,7 +399,15 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
       const x = f.left + inset;
       let by = top + pad + asc;
       for (let k = i; k < i + n; k++) {
-        if (rows[k]) drawLines(page, [rows[k]], mf, x, w, by, ml, 'left');
+        if (rows[k]) {
+          drawLines(page, [rows[k]], mf, x, w, by, ml, 'left');
+          // ▲ cells are drawn as vector triangles (Courier Prime has no triangle glyph)
+          const cell = mm('0');
+          for (const col of rows[k].tris || []) {
+            const cx = x + (rows[k].lead || 0) + col * cell;
+            page.ops.push({ t: 'tri', x: cx + cell * 0.2, y: by, w: cell * 0.6, h: mf.size * 0.62, color: '#2a2a2a' });
+          }
+        }
         if (k < i + n - 1) by += step(rows[k]);
       }
       const bottom = by + desc + pad;
@@ -553,6 +562,10 @@ export function buildPdf(book, S, { jsPDF, fontData }) {
       if (op.t === 'rect') {
         doc.setFillColor(...hexToRgb(op.color));
         doc.rect(op.x, op.y, op.w, op.h, 'F');
+      } else if (op.t === 'tri') {
+        // a filled triangle, pointing up, with its base on the baseline
+        doc.setFillColor(...hexToRgb(op.color));
+        doc.lines([[op.w, 0], [-op.w / 2, -op.h]], op.x, op.y, [1, 1], 'F', true);
       } else if (op.t === 'text') {
         setFont(op.fam, op.style, op.size);
         setColor(op.color);

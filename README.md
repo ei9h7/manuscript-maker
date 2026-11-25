@@ -95,7 +95,7 @@ Each line is one paragraph. Blank lines are ignored.
 | `## n\|Title\|Subtitle` | Starts a chapter. The subtitle is optional. `## Title` with no number gets the next number. |
 | `[!callout] …` | A callout box. A short `Label:` at the start is set in bold. |
 | `-----` (or `***`, `⁂`) | A scene break: a centred `*`. The paragraph after it starts flush left. |
-| ```` ``` ```` … ```` ``` ```` | A log block: monospaced (Courier Prime), line breaks kept exactly, set between thin rules. Nothing inside is changed, so straight quotes stay straight. |
+| ```` ``` ```` … ```` ``` ```` | A log block: monospaced (Courier Prime), line breaks kept exactly, set between thin rules. Nothing inside is changed, so straight quotes stay straight. A `▲` in a log is drawn as a small vector triangle, because the typewriter font has no triangle glyph. |
 | `**A short bold line.**` | When a paragraph is only a short bold line, it is centred as a display line. |
 | anything else | A body paragraph |
 | `\##`, `\[!callout]` | A literal `#` or `[` at the start of a paragraph |
