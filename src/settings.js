@@ -81,10 +81,15 @@ export const DEFAULTS = {
   // ``` fenced log blocks and *** scene breaks
   log: { leading: 11, indent: 24, rules: true, ruleColor: '#8a8a8a', space: 10 },
   sceneBreak: '*',
-  // ASCII art from art.md (``` fenced pieces), used in order: on a verso left blank so a
-  // chapter can open recto, and below the text of a verso that ends a chapter with fewer
-  // than `minParas` paragraphs (if the piece fits).
-  art: { enabled: false, minParas: 2, file: 'art.md' },
+  // ASCII art from art.md (``` fenced pieces of any size). Each empty space gets the
+  // largest unused piece that fits: a verso left blank so a chapter can open recto (or at
+  // the end), and the space below the text on a verso that ends a chapter, when at least
+  // `minSpace` of the page is free.
+  art: { enabled: false, minSpace: 0.25, file: 'art.md' },
+  // Chapters set as a terminal session (vim-style): mono type, line numbers, a file tab
+  // at the top, a status line at the foot and ~ after the last line. `chapters` lists
+  // chapter titles (or the start of them) to set this way.
+  terminal: { chapters: [], file: '', size: 0 },
   toc: { enabled: false, title: 'Contents', leaders: true, subtitles: false },
   input: { smartQuotes: true, smartDashes: true, ellipses: true, calloutPattern: '', calloutBoldLead: true },
   epub: { embedFonts: true, visibleToc: true, language: 'en' },

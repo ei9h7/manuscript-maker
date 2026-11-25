@@ -206,7 +206,22 @@ and turn it on in the settings (for example in `book.half-letter.json`):
 { "art": { "enabled": true }, "pages": { "chapterRecto": true } }
 ```
 
-The pieces are used in order. Each goes on a left-hand page that would otherwise be blank (before a chapter that opens on the right, or the last page). It can also go below the text of a left-hand page that ends a chapter with only one paragraph. `art.minParas` sets that limit (2 by default). Pieces are centred, printed in the typewriter font exactly as typed, and shrunk if they are too wide. Pieces with nowhere to go are listed in the build warnings.
+Make pieces in a mix of sizes. Every empty space gets the tallest unused piece that fits it at full size:
+
+- a left-hand page that would otherwise be blank (before a chapter that opens on the right, or the last page): the whole page;
+- the space under the text of a left-hand page that ends a chapter, when at least a quarter of the page is free (`art.minSpace`, 0.25).
+
+Pieces are centred and printed in the typewriter font exactly as typed. If nothing fits a blank page, the next unused piece is shrunk to fit. Pieces with nowhere to go are listed in the build warnings.
+
+### Terminal chapters
+
+`terminal.chapters` lists chapters to set as a vim session: typewriter font, line numbers (one per paragraph), a file tab at the top of each page, a status line at the foot (`NORMAL  archive.log    54,1  17%`) and `~` after the last line. It suits a chapter written as machine output.
+
+```json
+{ "terminal": { "chapters": ["Appendix"], "file": "archive_7A-113.log" } }
+```
+
+A chapter matches if its title starts with one of the entries. `file` is the name in the tab and status line (from the chapter title if left out).
 
 ### Large print
 

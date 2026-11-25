@@ -102,19 +102,36 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
     return p;
   };
   // ---------- ASCII art fillers ----------
-  const artPieces = S.art?.enabled ? (book.art || []) : [];
-  let artNext = 0;
-  /** Centre the next art piece between yTop and yBottom on page `pg`. False if none left or it won't fit. */
-  const placeArt = (pg, yTop, yBottom) => {
-    if (artNext >= artPieces.length) return false;
-    const lines = artPieces[artNext].split('\n');
+  const artPieces = (S.art?.enabled ? (book.art || []) : []).map((src) => {
+    const lines = src.split('\n');
     while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
     while (lines.length && !lines[0].trim()) lines.shift();
+    return lines;
+  }).filter((l) => l.length);
+  const artUsed = new Set();
+  let artNext = 0;
+  /**
+   * Centre art between yTop and yBottom on page `pg`: the tallest unused piece that fits
+   * at full size, else (if `shrink`) the next unused piece scaled down. False if none fits.
+   */
+  const placeArt = (pg, yTop, yBottom, shrink = false) => {
     const base = role('mono');
     const f = frame(pages.indexOf(pg) + 1);
-    const w0 = Math.max(...lines.map((l) => measureWith(base)(l)));
-    const size = Math.min(base.size, base.size * f.width / Math.max(w0, 1), (yBottom - yTop) / (lines.length * 1.15 + 0.2));
-    if (size < base.size * 0.5) return false;
+    const fit = (lines) => {
+      const w0 = Math.max(...lines.map((l) => measureWith(base)(l)));
+      const size = Math.min(base.size, base.size * f.width / Math.max(w0, 1), (yBottom - yTop) / (lines.length * 1.15 + 0.2));
+      return { w0, size };
+    };
+    let pick = -1, best = -1;
+    artPieces.forEach((lines, i) => {
+      if (artUsed.has(i)) return;
+      const { size } = fit(lines);
+      if (size >= base.size * 0.9 - EPS && lines.length > best) { best = lines.length; pick = i; }
+    });
+    if (pick < 0 && shrink) for (let i = 0; i < artPieces.length; i++) if (!artUsed.has(i) && fit(artPieces[i]).size >= base.size * 0.5) { pick = i; break; }
+    if (pick < 0) return false;
+    const lines = artPieces[pick];
+    const { w0, size } = fit(lines);
     const g = { ...base, size };
     const lead = size * 1.15;
     const w = w0 * size / base.size;
@@ -122,13 +139,13 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
     const x = f.left + (f.width - w) / 2;
     const y0 = yTop + (yBottom - yTop - h) / 2 + size * 0.78;
     lines.forEach((l, i) => textOp(pg, l, x, y0 + i * lead, g));
-    artNext++;
+    artUsed.add(pick); artNext++;
     return true;
   };
   const ensureRecto = (fill = false) => {
     if (pages.length % 2 === 0) return;
     const b = newPage('blank');
-    if (fill && placeArt(b, top, H - bottomM)) b.kind = 'art';
+    if (fill && placeArt(b, top, H - bottomM, true)) b.kind = 'art';
   };
   const fr = () => frame(pages.length);
 
@@ -372,10 +389,12 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
   let y = 0;
 
   const newBodyPage = (ci) => { page = newPage('body', { chapter: ci }); y = firstBaseline; };
-  /** A verso that ends a chapter with only a paragraph or so gets art in the space below. */
+  /** A verso that ends a chapter with enough room left gets art in the space below the text. */
   const fillShortVerso = () => {
-    if (!page || pages.length % 2 === 1 || page.opener || (page.paras || 0) >= (Number(S.art?.minParas) || 2)) return;
-    placeArt(page, y - bodyAsc + leading * 0.5, lastBaseline + bodyDesc);
+    if (!page || page.terminal || pages.length % 2 === 1 || !artPieces.length) return;
+    const yTop = y - bodyAsc + leading * 0.5, yBottom = lastBaseline + bodyDesc;
+    if (yBottom - yTop < (Number(S.art?.minSpace) || 0.25) * (lastBaseline - firstBaseline)) return;
+    placeArt(page, yTop, yBottom);
   };
   const atTop = () => Math.abs(y - firstBaseline) < EPS;
 
@@ -523,10 +542,75 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
     }
   };
 
+  // ---------- terminal chapters (vim-style) ----------
+  const T = S.terminal || {};
+  const isTerminal = (ch) => (T.chapters || []).some((t) => t && ch.title.toLowerCase().startsWith(String(t).toLowerCase()));
+  const layoutTerminal = (ch, ci) => {
+    const mf = role('mono', T.size ? { size: Number(T.size) } : { size: body.size * 0.92 });
+    const ink = { ...mf, color: '#000000' };
+    const dim = { ...mf, color: '#8a8a8a' };
+    const inv = { ...mf, color: '#ffffff', style: 'bold' };
+    const lead = mf.size * 1.45;
+    const asc = mf.size * 0.78;
+    const bar = lead * 1.05;
+    const file = T.file || `${ch.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}.log`;
+    const mm = measureWith(mf);
+    // Logical lines: the title as comments, a blank, then one line per paragraph.
+    const src = [`# ${ch.title}`, ...(ch.subtitle ? [`# ${ch.subtitle}`] : []), ''];
+    for (const b of ch.blocks) src.push(b.type === 'break' ? '' : b.text.replace(/[*_]/g, ''));
+    const total = src.length;
+    const gutterW = mm(String(total).padStart(3, ' ') + '  ');
+    const rows = [];
+    src.forEach((text, i) => {
+      const f = fr();
+      if (!text) { rows.push({ n: i + 1, text: '' }); return; }
+      breakText(text, mf, f.width - gutterW, { hyphenBreaks: true }).forEach((l, k) => rows.push({ n: k === 0 ? i + 1 : null, line: l }));
+    });
+    let r = 0, pgNo = 0;
+    while (r < rows.length) {
+      const pg = newPage('terminal', { chapter: ci, terminal: true });
+      if (pgNo++ === 0) chapterStart[ci] = pages.length;
+      page = pg;
+      const f = fr();
+      const pad = mf.size * 0.4;
+      // file tab
+      const tabW = mm(` ${file} `) + pad * 2;
+      pg.ops.push({ t: 'rect', x: f.left, y: top - bar, w: tabW, h: bar, color: '#000000' });
+      pg.ops.push({ t: 'rect', x: f.left, y: top - 0.6, w: f.width, h: 0.6, color: '#000000' });
+      textOp(pg, ` ${file} `, f.left + pad, top - bar + (bar - mf.size) / 2 + asc, inv);
+      // status line at the foot
+      const sTop = H - bottomM - bar;
+      let yy = top + lead * 0.6 + asc;
+      const first = rows[r].n ?? '';
+      while (r < rows.length && yy + lead * 0.3 <= sTop) {
+        const row = rows[r];
+        if (row.n != null) { const ns = String(row.n); textOp(pg, ns, f.left + gutterW - mm(ns + '  '), yy, dim); }
+        if (row.line) drawLines(pg, [row.line], mf, f.left + gutterW, f.width - gutterW, yy, lead, 'left');
+        yy += lead; r++;
+      }
+      if (r >= rows.length) while (yy + lead * 0.3 <= sTop) { textOp(pg, '~', f.left, yy, dim); yy += lead; }
+      const last = rows[Math.min(r, rows.length) - 1];
+      const lastN = rows.slice(0, r).reverse().find((x) => x.n != null)?.n ?? total;
+      const pos = r >= rows.length ? (pgNo === 1 ? 'All' : 'Bot') : pgNo === 1 ? 'Top' : `${Math.round(100 * lastN / total)}%`;
+      pg.ops.push({ t: 'rect', x: f.left, y: sTop, w: f.width, h: bar, color: '#000000' });
+      const sy = sTop + (bar - mf.size) / 2 + asc;
+      textOp(pg, ` NORMAL  ${file}`, f.left + pad, sy, inv);
+      const right = `${lastN},1  ${pos} `;
+      textOp(pg, right, f.left + f.width - pad - mm(right), sy, inv);
+      if (r >= rows.length) {
+        const cmd = `"${file}" ${total}L, ${src.join('\n').length}C`;
+        textOp(pg, cmd, f.left, sTop + bar + lead * 0.9, { ...mf, color: '#000000' });
+      }
+      void first; void last;
+    }
+    y = lastBaseline;
+  };
+
   book.chapters.forEach((ch, ci) => {
     if (ci > 0) fillShortVerso();
     if (S.pages.chapterRecto) ensureRecto(true);
     if (ci === 0) frontCount = pages.length;
+    if (isTerminal(ch)) { layoutTerminal(ch, ci); return; }
     page = newPage('body', { chapter: ci, opener: true });
     chapterStart[ci] = pages.length;
     const f = fr();
@@ -578,7 +662,7 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
   // ---------- closing blank ----------
   fillShortVerso();
   if (S.pages.endEven) ensureRecto(true);
-  if (artPieces.length && artNext < artPieces.length) warnings.push(`${artPieces.length - artNext} of ${artPieces.length} art pieces had no empty verso to go on.`);
+  if (artPieces.length && artNext < artPieces.length) warnings.push(`${artPieces.length - artNext} of ${artPieces.length} art pieces had no space to go in.`);
 
   // ---------- render ----------
   const folioFont = role('body', { size: Number(S.pages.folioSize) || 9, style: 'normal', color: S.pages.folioColor || '#000000' });
@@ -591,7 +675,7 @@ export function buildPdf(book, S0, { jsPDF, fontData }) {
       return { label, show };
     }
     const label = String(n - frontCount);
-    const show = p.kind !== 'blank' && p.kind !== 'art' && (!p.opener || S.pages.openerFolio);
+    const show = p.kind !== 'blank' && p.kind !== 'art' && p.kind !== 'terminal' && (!p.opener || S.pages.openerFolio);
     return { label, show };
   };
 
